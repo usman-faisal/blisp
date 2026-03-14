@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cide-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-cide}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cide-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: cide-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - cide-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cide-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-cide}?schema=public
+
+      PORT: ${PORT:-8000}
+      NODE_ENV: ${NODE_ENV:-production}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      BASE_DOMAIN: ${BASE_DOMAIN:-http://localhost:3000}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRY: ${JWT_EXPIRY:-3600}
+      
+      # Redis Configuration
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      
+      # Google API Key
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      
+      # Database Migration Control
+      RESET_DATABASE: ${RESET_DATABASE:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cide-network
+    command: >
+      sh -c "if [ \"$RESET_DATABASE\" = \"true\" ]; then
+               echo 'Resetting database...' &&
+               pnpm prisma migrate reset --force;
+             else
+               echo 'Deploying migrations...' &&
+               pnpm prisma migrate deploy;
+             fi &&
+             if [ -f dist/main.js ]; then node dist/main.js;
+             elif [ -f dist/src/main.js ]; then node dist/src/main.js;
+             else echo 'Error: main.js not found' && ls -la dist/ && exit 1;
+             fi"
+
+  adminer:
+    image: adminer
+    container_name: cide-adminer
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cide-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  cide-network:
+    driver: bridge

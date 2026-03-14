@@ -1,0 +1,21 @@
+# Dependencies
+node_modules
+.pnp*
+
+# Env
+.env*.local
+
+# Turbo & Vercel
+.turbo
+.vercel
+
+# Build Outputs
+dist/
+build/
+.next/
+
+# Logs
+*.log*
+
+# Misc
+.DS_Store

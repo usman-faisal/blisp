@@ -1,0 +1,35 @@
+
+name: Main Pipeline
+
+on:
+  push:
+    branches: 
+      - main   
+
+
+jobs:
+  deploy-main:
+    runs-on: ubuntu-latest
+  
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3 
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3  
+        with:
+          node-version: "20"  
+
+      - name: MAIN DEPLOYMENT
+        uses: appleboy/ssh-action@v0.1.7 
+        with:
+          host: ${{ secrets.SSH_HOST }} 
+          key: ${{secrets.SSH_KEY}} 
+          username: ${{ secrets.SSH_USERNAME }}  
+          script: |
+            cd /home/cide-backend
+            git pull origin main
+            npm install
+            npm run build
+            pm2 restart backend-apis
+            pm2 list

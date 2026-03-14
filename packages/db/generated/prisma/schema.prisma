@@ -1,0 +1,42 @@
+generator client {
+  provider   = "prisma-client-js"
+  output     = "../generated/prisma"
+  engineType = "library" // <-- ADD THIS LINE
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id    String @id @unique @default(uuid()) @db.Uuid
+  name  String
+  email String @unique
+
+  hasNotifications Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  // Notifications
+  notifications Notification[] @relation("UserNotifications")
+
+  @@index([name])
+  @@index([email])
+}
+
+model Notification {
+  id     String @id @unique @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+
+  title   String
+  message String?
+  url     String?
+
+  user User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
