@@ -47,7 +47,7 @@ export class WebhookService {
       throw new UnauthorizedException('Invalid webhook signature');
     }
 
-    if (event.type === 'user.created') {
+    if (event.type === 'user.created' || event.type === 'user.updated') {
       await this.handleUserCreated(event.data);
     }
   }
@@ -66,22 +66,19 @@ export class WebhookService {
       [data.first_name, data.last_name].filter(Boolean).join(' ').trim() ||
       primaryEmail.email_address.split('@')[0];
 
-    const existing = await this.prismaService.user.findUnique({
-      where: { email: primaryEmail.email_address },
-    });
-
-    if (existing) {
-      this.logger.log(`User with email ${primaryEmail.email_address} already exists, skipping`);
-      return;
-    }
-
-    await this.prismaService.user.create({
-      data: {
+    await this.prismaService.user.upsert({
+      where: { id: data.id },
+      update: {
+        name,
+        email: primaryEmail.email_address,
+      },
+      create: {
+        id: data.id,
         name,
         email: primaryEmail.email_address,
       },
     });
 
-    this.logger.log(`User created from Clerk webhook: ${primaryEmail.email_address}`);
+    this.logger.log(`User synced from Clerk webhook: ${primaryEmail.email_address}`);
   }
 }

@@ -7,10 +7,13 @@ import { TaskCard } from '@/components/ui/TaskCard';
 import { FloatingInput } from '@/components/FloatingInput';
 import { BlurTargetView } from 'expo-blur';
 import { useState, useRef } from 'react';
+import { useProfile } from '@/hooks/useProfile';
+import Text from '@/components/ui/Text';
 
 export default function Home() {
   const [query, setQuery] = useState('');
   const blurTargetRef = useRef<View | null>(null);
+  const { data: profile } = useProfile();
 
   return (
     <Container className="bg-core-background px-4`">
@@ -21,6 +24,12 @@ export default function Home() {
           <Ionicons name="notifications-outline" size={26} color="#1A1714" />
         </View>
       </View>
+
+      {profile && (
+        <Text className="mt-2 text-core-text-secondary">
+          Hello, {profile.name}
+        </Text>
+      )}
 
       <BlurTargetView ref={blurTargetRef} style={{ flex: 1 }}>
         <ScrollView className="mt-8 bg-core-background">
