@@ -7,7 +7,8 @@
     "dev": "tsup ./index.ts --watch",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev --skip-generate",
-    "db:deploy": "prisma migrate deploy"
+    "db:deploy": "prisma migrate deploy",
+    "postinstall": "prisma generate"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
@@ -20,6 +21,14 @@
     "@prisma/client": "6.9.0"
   },
   "exports": {
-    ".": "./dist/index.js"
-  }
+    ".": {
+      "types": "./index.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./index.ts"
 }

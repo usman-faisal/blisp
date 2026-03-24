@@ -4,11 +4,13 @@ import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { UserModule } from './user/user.module';
-import { NotificationModule } from './notification/notification.module';
+import { UsersModule } from './users/users.module';
+import { NotificationModule } from './notifications/notification.module';
 import { MailerModule } from './mailer/mailer.module';
 import { BullModule } from '@nestjs/bullmq';
 import { WebhookModule } from './webhook/webhook.module';
+import { BrainDumpsModule } from './brain_dumps/brain-dumps.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -33,10 +35,12 @@ import { WebhookModule } from './webhook/webhook.module';
     }),
     EventEmitterModule.forRoot(),
     AuthModule,
-    UserModule,
+    UsersModule,
     NotificationModule,
     MailerModule,
     WebhookModule,
+    BrainDumpsModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

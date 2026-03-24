@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
-
 export interface Profile {
   id: string;
   email: string;

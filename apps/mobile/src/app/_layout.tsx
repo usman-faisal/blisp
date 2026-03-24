@@ -37,7 +37,7 @@ export default function Layout() {
         <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
             <QueryClientProvider client={queryClient}>
                 <AuthTokenSync />
-                <Stack />
+                <Stack screenOptions={{headerShown: false}}/>
             </QueryClientProvider>
         </ClerkProvider>
     )

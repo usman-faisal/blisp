@@ -17,15 +17,15 @@ export default function Layout() {
     InstrumentSans: InstrumentSans_400Regular,
     DMSerifDisplay: DMSerifDisplay_400Regular,
   })
-    if (!isLoaded) {
+  if (!isLoaded) {
     return null
   }
 
   if (!isSignedIn) {
-    return <Redirect href="./(auth)/sign-in" />
+    return <Redirect href="/(auth)/sign-in" />
   }
-  
-  
+
+
 
   if (!fontsLoaded) {
     return null;
@@ -33,7 +33,7 @@ export default function Layout() {
 
   return (
     <SafeAreaProvider>
-        <Stack />
+      <Stack />
     </SafeAreaProvider>
   );
 }
