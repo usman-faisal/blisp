@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { getProjects } from '../lib/api/projects';
 
 export interface Resource {
   id: string;
@@ -90,10 +91,30 @@ export function useIncubatorProjects() {
 
   const fetchProjects = useCallback(async () => {
     setIsLoading(true);
-    // Simulate network latency
-    await new Promise((r) => setTimeout(r, 600));
-    setData(MOCK_PROJECTS);
-    setIsLoading(false);
+    try {
+      const response = await getProjects('INCUBATOR');
+      if (response.success) {
+        const mappedData: IncubatorProject[] = response.data.map(p => ({
+          id: p.id,
+          title: p.title,
+          description: p.description || '',
+          techStack: p.techStack || [],
+          resources: p.resources ? p.resources.map(r => ({
+            id: r.id,
+            title: r.title,
+            summary: r.summary || '',
+            source: r.type || 'Source',
+          })) : [],
+        }));
+        setData(mappedData);
+      }
+    } catch (error) {
+      console.error('Error fetching incubator projects:', error);
+      // Fallback for demo or error states can be MOCK_PROJECTS if needed,
+      // but to match actual data flow we'll not set it here.
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   // Initial fetch

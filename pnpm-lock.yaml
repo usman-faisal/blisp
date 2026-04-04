@@ -66,6 +66,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       ai:
         specifier: ^6.0.134
         version: 6.0.138(zod@4.3.6)
@@ -220,6 +223,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@tanstack/react-query':
         specifier: ^5.95.2
         version: 5.95.2(react@19.2.0)
@@ -386,6 +392,12 @@ importers:
         version: 8.57.2(eslint@9.39.4(jiti@2.4.2))(typescript@5.9.3)
 
   packages/ts-config: {}
+
+  packages/types:
+    dependencies:
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../db
 
 packages:
 

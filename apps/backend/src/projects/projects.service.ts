@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectStatus } from '@repo/db';
+import { ActivateProjectResponse, GetProjectsResponse } from '@repo/types';
 
 @Injectable()
 export class ProjectsService {
@@ -12,7 +13,7 @@ export class ProjectsService {
    * Promotes a project from INCUBATOR → ACTIVE.
    * The existing hourly cron will pick up its tasks automatically.
    */
-  async activateProject(userId: string, projectId: string) {
+  async activateProject(userId: string, projectId: string): Promise<ActivateProjectResponse> {
     const project = await this.prisma.project.findFirst({
       where: { id: projectId, userId },
     });
@@ -26,7 +27,7 @@ export class ProjectsService {
     if (project.status === ProjectStatus.ACTIVE) {
       this.logger.verbose(`Project ${projectId} is already ACTIVE. No-op.`);
       return {
-        data: project,
+        data: { id: project.id, status: project.status },
         message: 'This project is already active.',
         success: true,
       };
@@ -43,9 +44,36 @@ export class ProjectsService {
     );
 
     return {
-      data: updatedProject,
+      data: { id: updatedProject.id, status: updatedProject.status },
       message:
         'Project activated. Its tasks will be scheduled in your next daily plan.',
+      success: true,
+    };
+  }
+
+  async getProjects(userId: string, status?: ProjectStatus): Promise<GetProjectsResponse> {
+    const projects = await this.prisma.project.findMany({
+      where: {
+        userId,
+        ...(status && { status }),
+      },
+      include: {
+        resources: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      data: projects.map(p => ({
+        id: p.id,
+        title: p.title,
+        description: p.description,
+        techStack: p.techStack,
+        status: p.status,
+        classification: p.classification,
+        resources: p.resources,
+      })),
+      message: 'Projects retrieved successfully.',
       success: true,
     };
   }

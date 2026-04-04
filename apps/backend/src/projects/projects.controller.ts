@@ -1,8 +1,9 @@
-import { Controller, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { User } from '@repo/db';
+import { Controller, Param, ParseUUIDPipe, Post, Get, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { User, ProjectStatus } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
+import { ActivateProjectResponse, GetProjectsResponse } from '@repo/types';
 import { ProjectsService } from './projects.service';
 
 @ApiTags('projects')
@@ -25,7 +26,22 @@ export class ProjectsController {
   async activateProject(
     @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  ): Promise<ActivateProjectResponse> {
     return this.projectsService.activateProject(user.id, id);
+  }
+
+  @Get()
+  @ApiOperation({
+    summary: 'Get all projects',
+    description: 'Retrieves projects for the current user, optionally filtered by status.',
+  })
+  @ApiQuery({ name: 'status', enum: ProjectStatus, required: false })
+  @ApiResponse({ status: 200, description: 'Projects retrieved successfully.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getProjects(
+    @CurrentUser() user: User,
+    @Query('status') status?: ProjectStatus,
+  ): Promise<GetProjectsResponse> {
+    return this.projectsService.getProjects(user.id, status);
   }
 }

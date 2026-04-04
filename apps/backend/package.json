@@ -32,6 +32,7 @@
     "@nestjs/swagger": "^11.2.6",
     "@orpc/nest": "^1.13.9",
     "@repo/db": "workspace:*",
+    "@repo/types": "workspace:*",
     "ai": "^6.0.134",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.71.0",

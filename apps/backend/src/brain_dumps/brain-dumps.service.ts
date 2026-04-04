@@ -4,6 +4,7 @@ import { PrismaService } from 'src/common/services/prisma.service';
 import { CreateBrainDumpDto } from './dto/create-brain-dump.dto';
 import { AiService } from 'src/ai/ai.service';
 import { BrainDumpExtractionSchema, TaskUpdateSchema } from './types/schema';
+import { BrainDumpResponse, ProgressUpdateResponse } from '@repo/types';
 import { BRAIN_DUMP_SYSTEM_PROMPT } from 'src/common/prompts/brain-dump.prompt';
 import { PROGRESS_UPDATE_SYSTEM_PROMPT } from 'src/common/prompts/progress-update.prompt';
 import { throwError } from 'src/common/utils/helpers';
@@ -21,7 +22,10 @@ export class BrainDumpsService {
     @InjectQueue(QUEUES.INCUBATOR) private readonly incubatorQueue: Queue,
   ) { }
 
-  async createBrainDump(user: User, createBrainDumpDto: CreateBrainDumpDto) {
+  async createBrainDump(
+    user: User, 
+    createBrainDumpDto: CreateBrainDumpDto
+  ): Promise<BrainDumpResponse | ProgressUpdateResponse> {
     const { prompt: rawTranscript } = createBrainDumpDto;
 
     const initialBrainDump = await this.prisma.brainDump.create({
@@ -96,7 +100,24 @@ export class BrainDumpsService {
       }
 
       return {
-        data: processedBrainDump,
+        data: {
+          id: processedBrainDump.id,
+          rawTranscript: processedBrainDump.rawTranscript,
+          processedAt: processedBrainDump.processedAt?.toISOString() || null,
+          projects: processedBrainDump.projects.map(p => ({
+            id: p.id,
+            title: p.title,
+            description: p.description || '',
+            classification: p.classification,
+            status: p.status,
+            techStack: p.techStack,
+            tasks: p.tasks.map(t => ({
+              id: t.id,
+              title: t.title,
+              status: t.status,
+            })),
+          })),
+        },
         message: 'Brain dump processed successfully',
         success: true,
       };
@@ -114,7 +135,10 @@ export class BrainDumpsService {
     }
   }
 
-  private async handleProgressUpdate(userId: string, rawTranscript: string) {
+  private async handleProgressUpdate(
+    userId: string, 
+    rawTranscript: string
+  ): Promise<ProgressUpdateResponse> {
     const activeTasks = await this.prisma.task.findMany({
       where: {
         project: { userId },

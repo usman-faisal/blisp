@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { getTodayPlan } from '../lib/api/daily-plan';
 
 export interface DailyTask {
   id: string;
@@ -43,10 +44,36 @@ export function useDailyPlan() {
 
   const fetchPlan = useCallback(async () => {
     setIsLoading(true);
-    // Simulate network latency
-    await new Promise((r) => setTimeout(r, 800));
-    setData(MOCK_DAILY_PLAN);
-    setIsLoading(false);
+    try {
+      const response = await getTodayPlan();
+      if (response.success && response.data) {
+        const payload = response.data;
+        const mappedTasks = (payload.tasks || []).map(t => {
+          let mappedStatus: 'pending' | 'in_progress' | 'completed' = 'pending';
+          if (t.status === 'IN_PROGRESS') mappedStatus = 'in_progress';
+          if (t.status === 'DONE') mappedStatus = 'completed';
+
+          return {
+            id: t.id,
+            title: t.title,
+            status: mappedStatus,
+          };
+        });
+
+        setData({
+          summary: payload.summary || "Here is your plan for today.",
+          tasks: mappedTasks,
+        });
+      } else {
+        // No daily plan found or data is null
+        setData(undefined);
+      }
+    } catch (error) {
+      console.error('Error fetching today plan:', error);
+      // Fallback for UI if error occurs could maintain MOCK or leave undefined
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   // Initial fetch

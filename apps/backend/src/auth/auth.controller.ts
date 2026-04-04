@@ -3,19 +3,22 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
 import { User } from '@repo/db';
+import { GetProfileResponse } from '@repo/types';
 
 @ApiBearerAuth()
 @UseGuards(AuthGuard)
 @Controller('auth')
 export class AuthController {
   @Get('me')
-  async getProfile(@CurrentUser() user: User) {
-    console.log('hit')
-    console.log(user)
+  async getProfile(@CurrentUser() user: User): Promise<GetProfileResponse> {
     return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
+      data: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+      message: 'Profile retrieved successfully.',
+      success: true,
     };
   }
 }

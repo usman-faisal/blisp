@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
-import { User } from "@repo/db"
+import { GetProfileResponse, UserResponsePayload } from '@repo/types';
 
-async function fetchProfile(): Promise<User> {
-  const { data } = await apiClient.get<User>('/auth/me');
-  return data;
+async function fetchProfile(): Promise<UserResponsePayload> {
+  const { data } = await apiClient.get<GetProfileResponse>('/auth/me');
+  return data.data;
 }
 
 export function useProfile() {

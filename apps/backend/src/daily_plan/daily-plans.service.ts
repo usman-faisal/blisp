@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectStatus, TaskStatus } from '@repo/db';
+import { GetTodayPlanResponse, PullNextTaskResponse } from '@repo/types';
 
 @Injectable()
 export class DailyPlansService {
@@ -11,7 +12,7 @@ export class DailyPlansService {
   /**
    * Pulls exactly one additional backlog task into the user's plan for today.
    */
-  async pullNextTask(userId: string) {
+  async pullNextTask(userId: string): Promise<PullNextTaskResponse> {
     const today = this.getTodayDate();
 
     const todayPlan = await this.prisma.dailyPlan.findUnique({
@@ -87,5 +88,43 @@ export class DailyPlansService {
     return new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
     );
+  }
+
+  /**
+   * Retrieves today's daily plan for the user, along with its tasks.
+   */
+  async getTodayPlan(userId: string): Promise<GetTodayPlanResponse> {
+    const today = this.getTodayDate();
+
+    const todayPlan = await this.prisma.dailyPlan.findUnique({
+      where: { userId_planDate: { userId, planDate: today } },
+      include: {
+        tasks: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!todayPlan) {
+      return {
+        data: null,
+        message: 'No daily plan found for today.',
+        success: true,
+      };
+    }
+
+    return {
+      data: {
+        id: todayPlan.id,
+        summary: todayPlan.summary,
+        tasks: todayPlan.tasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+        })),
+      },
+      message: 'Today\'s daily plan retrieved.',
+      success: true,
+    };
   }
 }

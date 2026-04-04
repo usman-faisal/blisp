@@ -114,7 +114,6 @@ export default function FocusScreen() {
 
   return (
     <Container className="bg-core-background">
-      {/* Animated header — absolutely positioned so it doesn't leave dead space */}
       <Animated.View
         style={{
           position: 'absolute',
