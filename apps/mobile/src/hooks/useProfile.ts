@@ -1,13 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
-export interface Profile {
-  id: string;
-  email: string;
-  name: string;
-}
+import { User } from "@repo/db"
 
-async function fetchProfile(): Promise<Profile> {
-  const { data } = await apiClient.get<Profile>('/auth/me');
+async function fetchProfile(): Promise<User> {
+  const { data } = await apiClient.get<User>('/auth/me');
   return data;
 }
 

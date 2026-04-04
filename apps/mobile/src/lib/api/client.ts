@@ -13,14 +13,12 @@ export const apiClient = axios.create({
   },
 });
 
-/**
- * Attaches a Clerk session token to every request.
- * Call this once in your root layout after Clerk is initialised.
- */
-export function setAuthToken(token: string | null) {
-  if (token) {
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  } else {
-    delete apiClient.defaults.headers.common['Authorization'];
-  }
-}
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      console.error('[API Error]', error.response.status, JSON.stringify(error.response.data));
+    }
+    return Promise.reject(error);
+  },
+);

@@ -10,6 +10,8 @@ import { User } from '@repo/db';
 export class AuthController {
   @Get('me')
   async getProfile(@CurrentUser() user: User) {
+    console.log('hit')
+    console.log(user)
     return {
       id: user.id,
       email: user.email,

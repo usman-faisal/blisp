@@ -1,0 +1,160 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { PrismaService } from 'src/common/services/prisma.service';
+import { AiService } from 'src/ai/ai.service';
+import { ProjectStatus, TaskStatus } from '@repo/db';
+import { DAILY_BRIEFING_SYSTEM_PROMPT } from 'src/common/prompts/daily-plan.prompt';
+
+/** Maximum number of backlog tasks to pull into a single daily plan. */
+const MAX_TASKS_PER_DAY = 2;
+
+@Injectable()
+export class DailyPlanCronService {
+  private readonly logger = new Logger(DailyPlanCronService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aiService: AiService,
+  ) { }
+
+  /**
+   * Hourly sweep – ensures every active user has a DailyPlan for today.
+   * Runs at the top of every hour (e.g. 09:00, 10:00, …).
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async runDailyPlanSweep(): Promise<void> {
+    this.logger.log('⏰ Daily plan sweep started.');
+
+    const activeUsers = await this.prisma.user.findMany({
+      where: {
+        projects: {
+          some: { status: ProjectStatus.ACTIVE },
+        },
+      },
+      select: { id: true },
+    });
+
+    if (activeUsers.length === 0) {
+      this.logger.log('No active users found. Sweep complete.');
+      return;
+    }
+
+    this.logger.log(`Found ${activeUsers.length} active user(s). Processing…`);
+
+    for (const { id: userId } of activeUsers) {
+      await this.processUserPlan(userId);
+    }
+
+    this.logger.log('✅ Daily plan sweep complete.');
+  }
+
+  private async processUserPlan(userId: string): Promise<void> {
+    const today = this.getTodayDate();
+
+    const existingPlan = await this.prisma.dailyPlan.findUnique({
+      where: { userId_planDate: { userId, planDate: today } },
+    });
+
+    if (existingPlan) {
+      this.logger.verbose(`User ${userId} already has a plan for today. Skipping.`);
+      return;
+    }
+
+    const backlogTasks = await this.prisma.task.findMany({
+      where: {
+        dailyPlanId: null,
+        status: TaskStatus.TODO,
+        project: {
+          userId,
+          status: ProjectStatus.ACTIVE,
+        },
+      },
+      take: MAX_TASKS_PER_DAY,
+      orderBy: { createdAt: 'asc' },
+      include: {
+        project: { select: { title: true } },
+      },
+    });
+
+    if (backlogTasks.length === 0) {
+      this.logger.verbose(`User ${userId} has no backlog tasks to plan. Skipping.`);
+      return;
+    }
+
+    this.logger.log(
+      `Building daily plan for user ${userId} with ${backlogTasks.length} task(s).`,
+    );
+
+    const briefingPrompt = this.buildBriefingPrompt(backlogTasks);
+    let summary: string;
+
+    try {
+      summary = await this.aiService.generateText(briefingPrompt);
+      this.logger.verbose(`Morning briefing generated for user ${userId}.`);
+    } catch (err) {
+      this.logger.error(
+        `Failed to generate morning briefing for user ${userId}. Falling back to plain summary.`,
+        err,
+      );
+      summary = this.buildFallbackSummary(backlogTasks);
+    }
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const plan = await tx.dailyPlan.create({
+          data: {
+            userId,
+            planDate: today,
+            summary,
+          },
+        });
+
+        await tx.task.updateMany({
+          where: { id: { in: backlogTasks.map((t) => t.id) } },
+          data: {
+            dailyPlanId: plan.id,
+            plannedFor: today,
+          },
+        });
+
+        this.logger.log(
+          `✔ DailyPlan ${plan.id} created for user ${userId} with ${backlogTasks.length} task(s).`,
+        );
+      });
+    } catch (err) {
+      this.logger.error(`Transaction failed for user ${userId}.`, err);
+    }
+  }
+
+  /**
+   * Returns today's date normalised to midnight UTC so it aligns with the
+   * Prisma `@db.Date` column (no time component stored).
+   */
+  private getTodayDate(): Date {
+    const now = new Date();
+    return new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
+  }
+
+  private buildBriefingPrompt(
+    tasks: Array<{ title: string; project: { title: string } }>,
+  ): string {
+    const taskLines = tasks
+      .map((t) => `- "${t.title}" (Project: ${t.project.title})`)
+      .join('\n');
+
+    return (
+      `${DAILY_BRIEFING_SYSTEM_PROMPT}\n\n` +
+      `Here are the tasks the user will focus on today:\n${taskLines}\n\n` +
+      `Write the 2-sentence morning briefing now:`
+    );
+  }
+
+  private buildFallbackSummary(
+    tasks: Array<{ title: string; project: { title: string } }>,
+  ): string {
+    const taskTitles = tasks.map((t) => `"${t.title}"`).join(' and ');
+    return `Today you're focusing on ${taskTitles}. Stay focused and make progress one step at a time.`;
+  }
+}

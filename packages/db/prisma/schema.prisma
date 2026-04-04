@@ -6,7 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
 enum Classification {
@@ -15,42 +15,50 @@ enum Classification {
   BUG
   REFACTOR
   RESEARCH_SPIKE
+  PROGRESS_UPDATE
 }
 
-enum Status {
-  TODO
-  IN_PROGRESS
-  DONE
+enum ProjectStatus {
   INCUBATOR
   ACTIVE
 }
 
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum BrainDumpStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
 model User {
-  id            String        @id @unique
-  name          String
-  email         String        @unique
+  id               String         @id @unique
+  name             String
+  email            String         @unique
+  hasNotifications Boolean        @default(false)
+  createdAt        DateTime       @default(now())
 
-  hasNotifications Boolean @default(false)
-
-  createdAt DateTime  @default(now())
-  
   // Notifications
-  notifications          Notification[]        @relation("UserNotifications")
+  notifications    Notification[] @relation("UserNotifications")
+  brainDumps       BrainDump[]
+  projects         Project[]
+  dailyPlans       DailyPlan[]
 
   @@index([name])
   @@index([email])
 }
 
 model Notification {
-  id     String @id @unique @default(uuid()) @db.Uuid
-  userId String
-
-  title   String
-  message String?
-  url     String?
-
-  user User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
-
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  userId    String   @db.Text
+  title     String
+  message   String?
+  url       String?
+  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -58,12 +66,14 @@ model Notification {
 }
 
 model BrainDump {
-  id            String    @id @default(uuid()) @db.Uuid
-  userId        String    @map("user_id") @db.Uuid
-  rawTranscript String    @map("raw_transcript")
-  processedAt   DateTime? @map("processed_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-
+  id            String           @id @default(uuid()) @db.Uuid
+  userId        String           @map("user_id")
+  rawTranscript String           @map("raw_transcript")
+  status        BrainDumpStatus  @default(PENDING)
+  processedAt   DateTime?        @map("processed_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   projects      Project[]
 
   @@map("brain_dumps")
@@ -71,12 +81,12 @@ model BrainDump {
 
 model Project {
   id             String         @id @default(uuid()) @db.Uuid
-  userId         String         @map("user_id") @db.Uuid
+  userId         String         @map("user_id")
   originDumpId   String?        @map("origin_dump_id") @db.Uuid
   title          String         @db.VarChar(255)
   description    String?        @db.Text
   classification Classification
-  status         Status         @default(INCUBATOR)
+  status         ProjectStatus  @default(INCUBATOR)
 
   techStack      String[]       @map("tech_stack")
   createdAt      DateTime       @default(now()) @map("created_at")
@@ -84,18 +94,22 @@ model Project {
   originDump     BrainDump?     @relation(fields: [originDumpId], references: [id])
   tasks          Task[]
   resources      Resource[]
+  user           User           @relation(fields: [userId], references: [id])
 
   @@map("projects")
 }
 
 model Task {
-  id        String   @id @default(uuid()) @db.Uuid
-  projectId String   @map("project_id") @db.Uuid
-  title     String   @db.VarChar(255)
-  status    Status   @default(TODO)
-  createdAt DateTime @default(now()) @map("created_at")
+  id          String      @id @default(uuid()) @db.Uuid
+  projectId   String      @map("project_id") @db.Uuid
+  dailyPlanId String?     @map("daily_plan_id") @db.Uuid
+  title       String      @db.VarChar(255)
+  status      TaskStatus  @default(TODO)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  plannedFor  DateTime?   @db.Date
 
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  dailyPlan   DailyPlan?  @relation(fields: [dailyPlanId], references: [id])
 
   @@map("tasks")
 }
@@ -112,4 +126,18 @@ model Resource {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("resources")
+}
+
+model DailyPlan {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Text
+  planDate  DateTime @map("plan_date") @db.Date
+  tasks     Task[]
+  summary   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, planDate])
+  @@map("daily_plans")
 }

@@ -7,3 +7,12 @@ export const PASSWORD_RESET_TOKEN_EXPIRATION = 15 * 60 * 1000; // 15 minutes
 
 export const API_KEY_HEADER = 'x-api-key';
 export const TEAM_ID_HEADER = 'x-team-id';
+
+export const QUEUES = {
+  INCUBATOR: 'incubator',
+};
+
+export const JOBS = {
+  RESEARCH: 'research',
+  PLAN: 'plan',
+};

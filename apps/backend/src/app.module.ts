@@ -11,6 +11,8 @@ import { BullModule } from '@nestjs/bullmq';
 import { WebhookModule } from './webhook/webhook.module';
 import { BrainDumpsModule } from './brain_dumps/brain-dumps.module';
 import { AiModule } from './ai/ai.module';
+import { DailyPlanModule } from './daily_plan/daily-plan.module';
+import { ProjectsModule } from './projects/projects.module';
 
 @Module({
   imports: [
@@ -41,6 +43,8 @@ import { AiModule } from './ai/ai.module';
     WebhookModule,
     BrainDumpsModule,
     AiModule,
+    DailyPlanModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -26,6 +26,7 @@ export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
     try {
       const tokenPayload = await verifyToken(token, {
         secretKey: this.configService.get('CLERK_SECRET_KEY'),
+        clockSkewInMs: 60_000
       });
 
       const user = await this.usersService.getUser(tokenPayload.sub);

@@ -1,9 +1,9 @@
-import { ClerkProvider, useAuth } from "@clerk/expo";
+import { ClerkProvider } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
-import { useEffect } from "react";
-import { setAuthToken } from "@/lib/api/client";
+import { AxiosProvider } from "providers/AxiosProvider";
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!
 
@@ -13,32 +13,16 @@ if (!publishableKey) {
 
 const queryClient = new QueryClient();
 
-/**
- * Syncs the Clerk session token into the axios client whenever it changes.
- * Must be a child of <ClerkProvider> so useAuth() is available.
- */
-function AuthTokenSync() {
-    const { getToken, isSignedIn } = useAuth();
-
-    useEffect(() => {
-        if (!isSignedIn) {
-            setAuthToken(null);
-            return;
-        }
-
-        getToken().then((token) => setAuthToken(token));
-    }, [isSignedIn, getToken]);
-
-    return null;
-}
-
 export default function Layout() {
     return (
         <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-            <QueryClientProvider client={queryClient}>
-                <AuthTokenSync />
-                <Stack screenOptions={{headerShown: false}}/>
-            </QueryClientProvider>
+            <AxiosProvider>
+                <QueryClientProvider client={queryClient}>
+                    <SafeAreaProvider>
+                        <Stack screenOptions={{ headerShown: false }} />
+                    </SafeAreaProvider>
+                </QueryClientProvider>
+            </AxiosProvider>
         </ClerkProvider>
     )
 }
