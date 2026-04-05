@@ -1,6 +1,7 @@
 import { Container } from '@/components/ui/Container';
 import Text from '@/components/ui/Text';
 import { useProfile } from '@/hooks/useProfile';
+import { useProjectStats } from '@/hooks/useProjectStats';
 import { useAuth } from '@clerk/expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useState } from 'react';
@@ -77,6 +78,7 @@ function StatBadge({
 
 export default function ProfileScreen() {
   const { data: profile, isLoading } = useProfile();
+  const { data: stats, isLoading: isStatsLoading } = useProjectStats();
   const { signOut } = useAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -137,9 +139,9 @@ export default function ProfileScreen() {
 
         {/* Stats */}
         <View className="mt-4 flex-row gap-3">
-          <StatBadge value={3} label="Active" />
-          <StatBadge value={5} label="Incubating" />
-          <StatBadge value={12} label="Completed" />
+          <StatBadge value={isStatsLoading ? '-' : (stats?.activeCount ?? 0)} label="Active" />
+          <StatBadge value={isStatsLoading ? '-' : (stats?.incubatingCount ?? 0)} label="Incubating" />
+          <StatBadge value={isStatsLoading ? '-' : (stats?.completedCount ?? 0)} label="Completed" />
         </View>
 
         {/* Settings sections */}

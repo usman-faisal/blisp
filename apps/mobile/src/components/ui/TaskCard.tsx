@@ -6,8 +6,8 @@ type CardVariant = 'dark' | 'sage' | 'ember' | 'flax';
 
 interface TaskCardProps {
   title: string;
-  reviewCount: number;
-  timeRange: string;
+  reviewCount?: number;
+  timeRange?: string;
   priority?: Priority;
   variant?: CardVariant;
   onPress?: () => void;
@@ -96,9 +96,11 @@ export const TaskCard = ({
       <View className="flex-row items-start justify-between">
         <Text className={`${s.title} mr-4 flex-1 font-text text-xl leading-tight`}>{title}</Text>
         <View className="items-end gap-y-3">
-          <Text className={`${s.review} font-text text-sm font-semibold`}>
-            {reviewCount} Review
-          </Text>
+          {reviewCount !== undefined && (
+            <Text className={`${s.review} font-text text-sm font-semibold`}>
+              {reviewCount} Review
+            </Text>
+          )}
           <View className={`${s.arrowBtn} h-11 w-11 items-center justify-center rounded-full`}>
             <Ionicons name="arrow-up-right-box" size={20} color={s.arrowColor} />
           </View>
@@ -107,8 +109,12 @@ export const TaskCard = ({
 
       <View className="mt-5 flex-row items-center justify-between">
         <View className="flex-row items-center gap-x-2">
-          <Ionicons name="time-outline" size={16} color={s.timeIconColor} />
-          <Text className={`${s.time} font-text text-sm`}>{timeRange}</Text>
+          {timeRange && (
+            <>
+              <Ionicons name="time-outline" size={16} color={s.timeIconColor} />
+              <Text className={`${s.time} font-text text-sm`}>{timeRange}</Text>
+            </>
+          )}
         </View>
         <View className={`${s.priorityBtn} rounded-full px-4 py-2`}>
           <Text className={`${s.priorityText} font-text text-sm font-semibold`}>

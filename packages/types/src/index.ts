@@ -47,6 +47,14 @@ export interface ProjectResponse {
 
 export type GetProjectsResponse = ApiResponse<ProjectResponse[]>;
 
+export interface ProjectStatsResponsePayload {
+  activeCount: number;
+  incubatingCount: number;
+  completedCount: number;
+}
+
+export type GetProjectStatsResponse = ApiResponse<ProjectStatsResponsePayload>;
+
 export interface ActivateProjectResponsePayload {
   id: Project['id'];
   status: Project['status'];

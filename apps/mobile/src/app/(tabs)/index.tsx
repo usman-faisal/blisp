@@ -208,8 +208,6 @@ export default function FocusScreen() {
             <TaskCard
               key={task.id}
               title={task.title}
-              reviewCount={Math.max(1, 8 - index * 2)}
-              timeRange="10.00 AM - 05.30 PM"
               priority="high"
               variant={CARD_VARIANTS[index % CARD_VARIANTS.length]}
             />

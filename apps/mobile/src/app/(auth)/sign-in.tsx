@@ -1,7 +1,8 @@
 import { useSignIn } from '@clerk/expo'
 import { type Href, Link, useRouter } from 'expo-router'
 import React from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Pressable, TextInput, View, ActivityIndicator } from 'react-native'
+import Text from '@/components/ui/Text'
 
 export default function Page() {
   const { signIn, errors, fetchStatus } = useSignIn()
@@ -12,10 +13,7 @@ export default function Page() {
   const [code, setCode] = React.useState('')
 
   const handleSubmit = async () => {
-    const { error } = await signIn.password({
-      emailAddress,
-      password,
-    })
+    const { error } = await signIn.password({ emailAddress, password })
     if (error) {
       console.error(JSON.stringify(error, null, 2))
       return
@@ -25,12 +23,9 @@ export default function Page() {
       await signIn.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) {
-            // Handle pending session tasks
-            // See https://clerk.com/docs/guides/development/custom-flows/authentication/session-tasks
             console.log(session?.currentTask)
             return
           }
-
           const url = decorateUrl('/')
           if (url.startsWith('http')) {
             window.location.href = url
@@ -40,19 +35,13 @@ export default function Page() {
         },
       })
     } else if (signIn.status === 'needs_second_factor' || signIn.status === 'needs_client_trust') {
-      // Handle second factor or client trust verification
-      // For other second factor strategies,
-      // see https://clerk.com/docs/guides/development/custom-flows/authentication/multi-factor-authentication
-      // see https://clerk.com/docs/guides/development/custom-flows/authentication/client-trust
       const emailCodeFactor = signIn.supportedSecondFactors.find(
         (factor) => factor.strategy === 'email_code',
       )
-
       if (emailCodeFactor) {
         await signIn.mfa.sendEmailCode()
       }
     } else {
-      // Check why the sign-in is not complete
       console.error('Sign-in attempt not complete:', signIn)
     }
   }
@@ -64,12 +53,9 @@ export default function Page() {
       await signIn.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) {
-            // Handle pending session tasks
-            // See https://clerk.com/docs/guides/development/custom-flows/authentication/session-tasks
             console.log(session?.currentTask)
             return
           }
-
           const url = decorateUrl('/')
           if (url.startsWith('http')) {
             window.location.href = url
@@ -79,161 +65,144 @@ export default function Page() {
         },
       })
     } else {
-      // Check why the sign-in is not complete
       console.error('Sign-in attempt not complete:', signIn)
     }
   }
 
+  const isFetching = fetchStatus === 'fetching'
+
+  // — MFA / verification screen —
   if (signIn.status === 'needs_second_factor' || signIn.status === 'needs_client_trust') {
     return (
-      <View style={styles.container}>
-        <Text style={[styles.title, { fontSize: 24, fontWeight: 'bold' }]}>
-          Verify your account
+      <View className="flex-1 bg-core-background px-6 pt-20">
+        {/* Eyebrow */}
+        <Text className="font-text text-xs font-semibold uppercase tracking-widest text-brand-ember mb-2">
+          Two-step verification
+        </Text>
+
+        <Text className="font-heading text-4xl text-core-text-primary mb-2">
+          Check your inbox
+        </Text>
+
+        <Text className="font-text text-base text-core-text-secondary mb-10 leading-6">
+          We sent a verification code to your email address.
+        </Text>
+
+        {/* Code input */}
+        <Text className="font-text text-xs font-semibold uppercase tracking-widest text-core-text-secondary mb-2">
+          Verification code
         </Text>
         <TextInput
-          style={styles.input}
+          className="w-full bg-core-surface border border-semantic-border rounded-2xl px-4 py-4 font-text text-base text-core-text-primary mb-1"
           value={code}
-          placeholder="Enter your verification code"
-          placeholderTextColor="#666666"
-          onChangeText={(code) => setCode(code)}
+          placeholder="000000"
+          placeholderTextColor="#B0AAA3"
+          onChangeText={setCode}
           keyboardType="numeric"
         />
-        {errors.fields.code && <Text style={styles.error}>{errors.fields.code.message}</Text>}
+        {errors.fields.code && (
+          <Text className="font-text text-xs text-semantic-danger mt-1 mb-3">
+            {errors.fields.code.message}
+          </Text>
+        )}
+
+        {/* Verify button */}
         <Pressable
-          style={({ pressed }) => [
-            styles.button,
-            fetchStatus === 'fetching' && styles.buttonDisabled,
-            pressed && styles.buttonPressed,
-          ]}
+          className={`w-full rounded-2xl py-4 items-center mt-6 ${isFetching ? 'bg-brand-ember opacity-50' : 'bg-brand-ember'}`}
           onPress={handleVerify}
-          disabled={fetchStatus === 'fetching'}
+          disabled={isFetching}
         >
-          <Text style={styles.buttonText}>Verify</Text>
+          {isFetching
+            ? <ActivityIndicator color="#F7F4EF" />
+            : <Text className="font-text text-base font-semibold text-core-background">Verify</Text>
+          }
         </Pressable>
+
+        {/* Resend */}
         <Pressable
-          style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+          className="w-full rounded-2xl py-4 items-center mt-3 bg-core-surface"
           onPress={() => signIn.mfa.sendEmailCode()}
         >
-          <Text style={styles.secondaryButtonText}>I need a new code</Text>
+          <Text className="font-text text-sm font-semibold text-brand-ember">
+            Resend code
+          </Text>
         </Pressable>
       </View>
     )
   }
 
+  // — Main sign-in screen —
   return (
-    <View style={styles.container}>
-      <Text style={[styles.title, { fontSize: 24, fontWeight: 'bold' }]}>Sign in</Text>
-      <Text style={styles.label}>Email address</Text>
+    <View className="flex-1 bg-core-background px-6 pt-20">
+      {/* Eyebrow */}
+      <Text className="font-text text-xs font-semibold uppercase tracking-widest text-brand-ember mb-2">
+        Welcome back
+      </Text>
+
+      <Text className="font-heading text-4xl text-core-text-primary mb-2">
+        Sign in
+      </Text>
+
+      <Text className="font-text text-base text-core-text-secondary mb-10 leading-6">
+        Pick up right where you left off.
+      </Text>
+
+      {/* Email */}
+      <Text className="font-text text-xs font-semibold uppercase tracking-widest text-core-text-secondary mb-2">
+        Email address
+      </Text>
       <TextInput
-        style={styles.input}
+        className="w-full bg-core-surface border border-semantic-border rounded-2xl px-4 py-4 font-text text-base text-core-text-primary mb-1"
         autoCapitalize="none"
         value={emailAddress}
-        placeholder="Enter email"
-        placeholderTextColor="#666666"
-        onChangeText={(emailAddress) => setEmailAddress(emailAddress)}
+        placeholder="you@example.com"
+        placeholderTextColor="#B0AAA3"
+        onChangeText={setEmailAddress}
         keyboardType="email-address"
       />
       {errors.fields.identifier && (
-        <Text style={styles.error}>{errors.fields.identifier.message}</Text>
+        <Text className="font-text text-xs text-semantic-danger mt-1 mb-2">
+          {errors.fields.identifier.message}
+        </Text>
       )}
-      <Text style={styles.label}>Password</Text>
-      <TextInput
-        style={styles.input}
-        value={password}
-        placeholder="Enter password"
-        placeholderTextColor="#666666"
-        secureTextEntry={true}
-        onChangeText={(password) => setPassword(password)}
-      />
-      {errors.fields.password && <Text style={styles.error}>{errors.fields.password.message}</Text>}
-      <Pressable
-        style={({ pressed }) => [
-          styles.button,
-          (!emailAddress || !password || fetchStatus === 'fetching') && styles.buttonDisabled,
-          pressed && styles.buttonPressed,
-        ]}
-        onPress={handleSubmit}
-        disabled={!emailAddress || !password || fetchStatus === 'fetching'}
-      >
-        <Text style={styles.buttonText}>Continue</Text>
-      </Pressable>
-      {/* For your debugging purposes. You can just console.log errors, but we put them in the UI for convenience */}
-      {errors && <Text style={styles.debug}>{JSON.stringify(errors, null, 2)}</Text>}
 
-      <View style={styles.linkContainer}>
-        <Text>Don't have an account? </Text>
+      {/* Password */}
+      <Text className="font-text text-xs font-semibold uppercase tracking-widest text-core-text-secondary mt-4 mb-2">
+        Password
+      </Text>
+      <TextInput
+        className="w-full bg-core-surface border border-semantic-border rounded-2xl px-4 py-4 font-text text-base text-core-text-primary mb-1"
+        value={password}
+        placeholder="••••••••"
+        placeholderTextColor="#B0AAA3"
+        secureTextEntry
+        onChangeText={setPassword}
+      />
+      {errors.fields.password && (
+        <Text className="font-text text-xs text-semantic-danger mt-1 mb-2">
+          {errors.fields.password.message}
+        </Text>
+      )}
+
+      {/* Submit */}
+      <Pressable
+        className={`w-full rounded-2xl py-4 items-center mt-8 bg-brand-ember ${(!emailAddress || !password || isFetching) ? 'opacity-50' : 'opacity-100'}`}
+        onPress={handleSubmit}
+        disabled={!emailAddress || !password || isFetching}
+      >
+        {isFetching
+          ? <ActivityIndicator color="#F7F4EF" />
+          : <Text className="font-text text-base font-semibold text-core-background">Continue</Text>
+        }
+      </Pressable>
+
+      {/* Sign-up link */}
+      <View className="flex-row items-center justify-center gap-x-1 mt-6">
+        <Text className="font-text text-sm text-core-text-secondary">Don't have an account?</Text>
         <Link href="./sign-up">
-          <Text style={{ color: '#0a7ea4' }}>Sign up</Text>
+          <Text className="font-text text-sm font-semibold text-brand-flax">Sign up</Text>
         </Link>
       </View>
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    gap: 12,
-  },
-  title: {
-    marginBottom: 8,
-  },
-  label: {
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
-  },
-  button: {
-    backgroundColor: '#0a7ea4',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonPressed: {
-    opacity: 0.7,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  secondaryButtonText: {
-    color: '#0a7ea4',
-    fontWeight: '600',
-  },
-  linkContainer: {
-    flexDirection: 'row',
-    gap: 4,
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  error: {
-    color: '#d32f2f',
-    fontSize: 12,
-    marginTop: -8,
-  },
-  debug: {
-    fontSize: 10,
-    opacity: 0.5,
-    marginTop: 8,
-  },
-})

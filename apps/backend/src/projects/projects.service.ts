@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectStatus } from '@repo/db';
-import { ActivateProjectResponse, GetProjectsResponse } from '@repo/types';
+import { ActivateProjectResponse, GetProjectsResponse, GetProjectStatsResponse } from '@repo/types';
 
 @Injectable()
 export class ProjectsService {
@@ -75,6 +75,34 @@ export class ProjectsService {
       })),
       message: 'Projects retrieved successfully.',
       success: true,
+    };
+  }
+
+  async getProjectStats(userId: string): Promise<GetProjectStatsResponse> {
+    const stats = await this.prisma.project.groupBy({
+      by: ['status'],
+      where: { userId },
+      _count: {
+        id: true,
+      },
+    });
+
+    const counts = {
+      activeCount: 0,
+      incubatingCount: 0,
+      completedCount: 0,
+    };
+
+    stats.forEach(stat => {
+      if (stat.status === ProjectStatus.ACTIVE) counts.activeCount = stat._count.id;
+      if (stat.status === ProjectStatus.INCUBATOR) counts.incubatingCount = stat._count.id;
+      if (stat.status === ProjectStatus.ARCHIVED) counts.completedCount = stat._count.id;
+    });
+
+    return {
+      data: counts,
+      success: true,
+      message: 'Project stats retrieved successfully.',
     };
   }
 }

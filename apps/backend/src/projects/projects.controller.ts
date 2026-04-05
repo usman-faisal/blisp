@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags }
 import { User, ProjectStatus } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
-import { ActivateProjectResponse, GetProjectsResponse } from '@repo/types';
+import { ActivateProjectResponse, GetProjectsResponse, GetProjectStatsResponse } from '@repo/types';
 import { ProjectsService } from './projects.service';
 
 @ApiTags('projects')
@@ -28,6 +28,17 @@ export class ProjectsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ActivateProjectResponse> {
     return this.projectsService.activateProject(user.id, id);
+  }
+
+  @Get('stats')
+  @ApiOperation({
+    summary: 'Get project statistics',
+    description: 'Retrieves counts of projects by status for the current user.',
+  })
+  @ApiResponse({ status: 200, description: 'Stats retrieved successfully.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getProjectStats(@CurrentUser() user: User): Promise<GetProjectStatsResponse> {
+    return this.projectsService.getProjectStats(user.id);
   }
 
   @Get()
