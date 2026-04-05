@@ -1,6 +1,7 @@
 import { Container } from '@/components/ui/Container';
 import Text from '@/components/ui/Text';
 import { useIncubatorProjects, IncubatorProject } from '@/hooks/useIncubatorProjects';
+import { activateProject } from '@/lib/api/projects';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
@@ -214,8 +215,7 @@ export default function IncubatorScreen() {
     async (projectId: string) => {
       setActivatingId(projectId);
       try {
-        // In production: await activateProject(projectId);
-        await new Promise((r) => setTimeout(r, 1000));
+        await activateProject(projectId);
 
         // Remove the project from the visible list
         setRemovedIds((prev) => new Set(prev).add(projectId));

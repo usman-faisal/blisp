@@ -393,11 +393,7 @@ importers:
 
   packages/ts-config: {}
 
-  packages/types:
-    dependencies:
-      '@repo/db':
-        specifier: workspace:*
-        version: link:../db
+  packages/types: {}
 
 packages:
 

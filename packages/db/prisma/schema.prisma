@@ -21,6 +21,7 @@ enum Classification {
 enum ProjectStatus {
   INCUBATOR
   ACTIVE
+  ARCHIVED
 }
 
 enum TaskStatus {

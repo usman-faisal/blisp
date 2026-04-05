@@ -1,12 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { User, ProjectStatus, BrainDumpStatus, TaskStatus } from '@repo/db';
+import { User, ProjectStatus, BrainDumpStatus, TaskStatus, Prisma } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { CreateBrainDumpDto } from './dto/create-brain-dump.dto';
 import { AiService } from 'src/ai/ai.service';
-import { BrainDumpExtractionSchema, TaskUpdateSchema } from './types/schema';
+import { BrainDumpExtractionSchema } from './types/schema';
 import { BrainDumpResponse, ProgressUpdateResponse } from '@repo/types';
 import { BRAIN_DUMP_SYSTEM_PROMPT } from 'src/common/prompts/brain-dump.prompt';
-import { PROGRESS_UPDATE_SYSTEM_PROMPT } from 'src/common/prompts/progress-update.prompt';
 import { throwError } from 'src/common/utils/helpers';
 import { Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -23,7 +22,7 @@ export class BrainDumpsService {
   ) { }
 
   async createBrainDump(
-    user: User, 
+    user: User,
     createBrainDumpDto: CreateBrainDumpDto
   ): Promise<BrainDumpResponse | ProgressUpdateResponse> {
     const { prompt: rawTranscript } = createBrainDumpDto;
@@ -38,8 +37,32 @@ export class BrainDumpsService {
     try {
       this.logger.log('Processing brain dump for user:', user.id);
 
+      const existingProjects = await this.prisma.project.findMany({
+        where: { userId: user.id, status: { not: ProjectStatus.ARCHIVED } },
+        select: { id: true, title: true, description: true, status: true },
+      });
+
+      const activeTasks = await this.prisma.task.findMany({
+        where: {
+          project: { userId: user.id },
+          status: { in: [TaskStatus.TODO, TaskStatus.IN_PROGRESS] },
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          project: { select: { title: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      const promptContext =
+        `Existing Projects:\n${JSON.stringify(existingProjects, null, 2)}\n\n` +
+        `Active Tasks:\n${JSON.stringify(activeTasks, null, 2)}\n\n` +
+        `User Transcript: "${rawTranscript}"\n`;
+
       const response = await this.aiService.generateStructuredData(
-        rawTranscript,
+        promptContext,
         BrainDumpExtractionSchema,
         'BrainDump',
         BRAIN_DUMP_SYSTEM_PROMPT,
@@ -47,33 +70,119 @@ export class BrainDumpsService {
 
       this.logger.log('Brain dump processed successfully for user:', user.id);
 
-      if (response.classification === 'PROGRESS_UPDATE') {
-        this.logger.log(`Detected PROGRESS_UPDATE for user ${user.id}. Diverting to task matcher.`);
+      let validTargetProjectId = response.targetProjectId;
+      if (validTargetProjectId) {
+        const exists = existingProjects.find(p => p.id === validTargetProjectId);
+        if (!exists) {
+          this.logger.warn(`AI provided invalid targetProjectId: ${validTargetProjectId}`);
+          validTargetProjectId = null;
+        }
+      }
 
-        await this.prisma.brainDump.update({
-          where: { id: initialBrainDump.id },
-          data: { status: BrainDumpStatus.PROCESSED, processedAt: new Date() },
-        });
+      switch (response.intent) {
+        case 'PROGRESS_UPDATE':
+          this.logger.log(`Detected PROGRESS_UPDATE for user ${user.id}. Processing directly.`);
 
-        return this.handleProgressUpdate(user.id, rawTranscript);
+          if (!response.targetTaskId || !response.newStatus) {
+            this.logger.warn(`AI could not identify a valid task from PROGRESS_UPDATE.`);
+            return {
+              data: null,
+              message: "I couldn't match your update to an existing task. Could you be more specific about what you accomplished?",
+              success: false,
+            };
+          }
+
+          const validTask = activeTasks.find((t) => t.id === response.targetTaskId);
+          if (!validTask) {
+            this.logger.error(`AI hallucinated targetTaskId: ${response.targetTaskId}`);
+            return {
+              data: null,
+              message: "I couldn't confidently match your update to an existing task. Could you be more specific?",
+              success: false,
+            };
+          }
+
+          const updatedTask = await this.prisma.task.update({
+            where: { id: response.targetTaskId },
+            data: { status: response.newStatus as TaskStatus },
+            include: { project: { select: { title: true } } },
+          });
+
+          await this.prisma.brainDump.update({
+            where: { id: initialBrainDump.id },
+            data: { status: BrainDumpStatus.PROCESSED, processedAt: new Date() },
+          });
+
+          this.logger.log(`Task "${updatedTask.title}" (${updatedTask.id}) updated to ${response.newStatus} for user ${user.id}.`);
+
+          return {
+            data: {
+              taskId: updatedTask.id,
+              taskTitle: updatedTask.title,
+              projectTitle: updatedTask.project.title,
+              newStatus: response.newStatus as TaskStatus,
+            },
+            message: response.acknowledgement || 'Progress updated safely!',
+            success: true,
+          };
+
+        case 'ARCHIVE_PROJECT':
+          if (validTargetProjectId) {
+            await this.prisma.project.update({
+              where: { id: validTargetProjectId },
+              data: { status: ProjectStatus.ARCHIVED },
+            });
+          }
+          break;
+
+        case 'UPDATE_PROJECT':
+          if (validTargetProjectId && response.projectUpdates) {
+            const { title, description, techStack } = response.projectUpdates;
+            const updatePayload: Prisma.ProjectUpdateInput = {};
+            if (title) updatePayload.title = title;
+            if (description) updatePayload.description = description;
+            if (techStack && techStack.length > 0) updatePayload.techStack = techStack;
+
+            if (Object.keys(updatePayload).length > 0) {
+              await this.prisma.project.update({
+                where: { id: validTargetProjectId },
+                data: updatePayload,
+              });
+            }
+          }
+          break;
+
+        case 'APPEND_NOTE':
+        case 'CREATE_PROJECT':
+        default:
+          break;
+      }
+
+      const updateData: any = {
+        status: BrainDumpStatus.PROCESSED,
+        processedAt: new Date(),
+      };
+
+      if (response.intent === 'CREATE_PROJECT') {
+        updateData.projects = {
+          create: {
+            userId: user.id,
+            title: response.title,
+            description: response.summary,
+            classification: response.classification,
+            status: response.suggestedStatus,
+            techStack: response.techStack,
+          },
+        };
+      } else if (validTargetProjectId) {
+        updateData.projects = {
+          connect: { id: validTargetProjectId },
+        };
       }
 
       const processedBrainDump = await this.prisma.brainDump.update({
         where: { id: initialBrainDump.id },
-        data: {
-          status: BrainDumpStatus.PROCESSED,
-          processedAt: new Date(),
-          projects: {
-            create: {
-              userId: user.id,
-              title: response.title,
-              description: response.summary,
-              classification: response.classification,
-              status: response.suggestedStatus,
-              techStack: response.techStack,
-            },
-          },
-        },
+        data: updateData,
         include: {
           projects: {
             include: {
@@ -81,13 +190,11 @@ export class BrainDumpsService {
             },
           },
         },
-      })
-
-      this.logger.log('Brain dump processed successfully for user:', user.id);
+      });
 
       const project = processedBrainDump.projects[0];
 
-      if (project) {
+      if (response.intent === 'CREATE_PROJECT' && project) {
         this.logger.log(`Registering research job for ${project.status} project: ${project.id}`);
         await this.incubatorQueue.add(JOBS.RESEARCH, {
           projectId: project.id,
@@ -133,96 +240,5 @@ export class BrainDumpsService {
         'Your brain dump was saved, but we encountered an error generating the action plan. We will try again later.',
       );
     }
-  }
-
-  private async handleProgressUpdate(
-    userId: string, 
-    rawTranscript: string
-  ): Promise<ProgressUpdateResponse> {
-    const activeTasks = await this.prisma.task.findMany({
-      where: {
-        project: { userId },
-        status: { in: [TaskStatus.TODO, TaskStatus.IN_PROGRESS] },
-      },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        project: { select: { title: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    if (activeTasks.length === 0) {
-      this.logger.warn(`User ${userId} reported progress but has no active tasks.`);
-      return {
-        data: null,
-        message: "You don't have any active tasks right now. Try creating a new brain dump first!",
-        success: false,
-      };
-    }
-
-    const taskContext = activeTasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      projectTitle: t.project.title,
-      status: t.status,
-    }));
-
-    const prompt =
-      `Active Tasks:\n${JSON.stringify(taskContext, null, 2)}\n\n` +
-      `User Transcript: "${rawTranscript}"\n\n` +
-      `Which task is the user referring to? Return the matching task ID, new status, and a short acknowledgement.`;
-
-    const result = await this.aiService.generateStructuredData(
-      prompt,
-      TaskUpdateSchema,
-      'TaskUpdate',
-      PROGRESS_UPDATE_SYSTEM_PROMPT,
-    );
-
-    if (!result.taskId) {
-      this.logger.warn(`AI could not match transcript to a task for user ${userId}.`);
-      return {
-        data: null,
-        message:
-          "I couldn't find a task matching that description. Could you be more specific about which task you're updating?",
-        success: false,
-      };
-    }
-
-    const targetTask = activeTasks.find((t) => t.id === result.taskId);
-    if (!targetTask) {
-      this.logger.error(
-        `AI returned taskId ${result.taskId} which is not in the user's active task list. Possible hallucination.`,
-      );
-      return {
-        data: null,
-        message:
-          "I couldn't confidently match your update to an existing task. Could you be more specific?",
-        success: false,
-      };
-    }
-
-    const updatedTask = await this.prisma.task.update({
-      where: { id: result.taskId },
-      data: { status: result.newStatus as TaskStatus },
-      include: { project: { select: { title: true } } },
-    });
-
-    this.logger.log(
-      `Task "${updatedTask.title}" (${updatedTask.id}) updated to ${result.newStatus} for user ${userId}.`,
-    );
-
-    return {
-      data: {
-        taskId: updatedTask.id,
-        taskTitle: updatedTask.title,
-        projectTitle: updatedTask.project.title,
-        newStatus: result.newStatus,
-      },
-      message: result.acknowledgement,
-      success: true,
-    };
   }
 }
