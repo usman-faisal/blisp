@@ -5,7 +5,7 @@ import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
 import { BrainDumpsService } from './brain-dumps.service';
 import { CreateBrainDumpDto } from './dto/create-brain-dump.dto';
-import { BrainDumpResponse, ProgressUpdateResponse } from '@repo/types';
+import { BrainDumpResponse } from '@repo/types';
 
 @ApiTags('brain-dumps')
 @ApiBearerAuth('JWT-auth')
@@ -21,7 +21,7 @@ export class BrainDumpsController {
   async createBrainDump(
     @CurrentUser() user: User,
     @Body() createBrainDumpDto: CreateBrainDumpDto,
-  ): Promise<BrainDumpResponse | ProgressUpdateResponse> {
+  ): Promise<BrainDumpResponse> {
     return this.brainDumpsService.createBrainDump(user, createBrainDumpDto);
   }
 }

@@ -1,7 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/common/services/prisma.service';
-import { ProjectStatus } from '@repo/db';
-import { ActivateProjectResponse, GetProjectsResponse, GetProjectStatsResponse } from '@repo/types';
+import { ProjectStatus, Prisma } from '@repo/db';
+import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectStatsResponse, UpdateProjectResponse } from '@repo/types';
+import { UpdateProjectDto } from './dto/update-project.dto';
 
 @Injectable()
 export class ProjectsService {
@@ -47,6 +48,70 @@ export class ProjectsService {
       data: { id: updatedProject.id, status: updatedProject.status },
       message:
         'Project activated. Its tasks will be scheduled in your next daily plan.',
+      success: true,
+    };
+  }
+
+  async archiveProject(userId: string, projectId: string): Promise<ArchiveProjectResponse> {
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, userId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found or you do not own it.');
+    }
+
+    if (project.status === ProjectStatus.ARCHIVED) {
+      return {
+        data: { id: project.id, status: project.status },
+        message: 'This project is already archived.',
+        success: true,
+      };
+    }
+
+    const updated = await this.prisma.project.update({
+      where: { id: projectId },
+      data: { status: ProjectStatus.ARCHIVED },
+    });
+
+    this.logger.log(`Project "${updated.title}" (${projectId}) archived for user ${userId}.`);
+
+    return {
+      data: { id: updated.id, status: updated.status },
+      message: 'Project archived successfully.',
+      success: true,
+    };
+  }
+
+  async updateProject(userId: string, projectId: string, dto: UpdateProjectDto): Promise<UpdateProjectResponse> {
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, userId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found or you do not own it.');
+    }
+
+    const updatePayload: Prisma.ProjectUpdateInput = {};
+    if (dto.title) updatePayload.title = dto.title;
+    if (dto.description) updatePayload.description = dto.description;
+    if (dto.techStack && dto.techStack.length > 0) updatePayload.techStack = dto.techStack;
+
+    const updated = await this.prisma.project.update({
+      where: { id: projectId },
+      data: updatePayload,
+    });
+
+    this.logger.log(`Project "${updated.title}" (${projectId}) updated for user ${userId}.`);
+
+    return {
+      data: {
+        id: updated.id,
+        title: updated.title,
+        description: updated.description,
+        techStack: updated.techStack,
+      },
+      message: 'Project updated successfully.',
       success: true,
     };
   }

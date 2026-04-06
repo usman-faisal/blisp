@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { User, ProjectStatus, BrainDumpStatus, TaskStatus, Prisma } from '@repo/db';
+import { User, ProjectStatus, BrainDumpStatus } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { CreateBrainDumpDto } from './dto/create-brain-dump.dto';
 import { AiService } from 'src/ai/ai.service';
 import { BrainDumpExtractionSchema } from './types/schema';
-import { BrainDumpResponse, ProgressUpdateResponse } from '@repo/types';
+import { BrainDumpResponse } from '@repo/types';
 import { BRAIN_DUMP_SYSTEM_PROMPT } from 'src/common/prompts/brain-dump.prompt';
 import { throwError } from 'src/common/utils/helpers';
 import { Logger } from '@nestjs/common';
@@ -23,8 +23,8 @@ export class BrainDumpsService {
 
   async createBrainDump(
     user: User,
-    createBrainDumpDto: CreateBrainDumpDto
-  ): Promise<BrainDumpResponse | ProgressUpdateResponse> {
+    createBrainDumpDto: CreateBrainDumpDto,
+  ): Promise<BrainDumpResponse> {
     const { prompt: rawTranscript } = createBrainDumpDto;
 
     const initialBrainDump = await this.prisma.brainDump.create({
@@ -42,23 +42,8 @@ export class BrainDumpsService {
         select: { id: true, title: true, description: true, status: true },
       });
 
-      const activeTasks = await this.prisma.task.findMany({
-        where: {
-          project: { userId: user.id },
-          status: { in: [TaskStatus.TODO, TaskStatus.IN_PROGRESS] },
-        },
-        select: {
-          id: true,
-          title: true,
-          status: true,
-          project: { select: { title: true } },
-        },
-        orderBy: { createdAt: 'asc' },
-      });
-
       const promptContext =
         `Existing Projects:\n${JSON.stringify(existingProjects, null, 2)}\n\n` +
-        `Active Tasks:\n${JSON.stringify(activeTasks, null, 2)}\n\n` +
         `User Transcript: "${rawTranscript}"\n`;
 
       const response = await this.aiService.generateStructuredData(
@@ -77,101 +62,6 @@ export class BrainDumpsService {
           this.logger.warn(`AI provided invalid targetProjectId: ${validTargetProjectId}`);
           validTargetProjectId = null;
         }
-      }
-
-      switch (response.intent) {
-        case 'PROGRESS_UPDATE':
-          this.logger.log(`Detected PROGRESS_UPDATE for user ${user.id}. Processing directly.`);
-
-          if (!response.targetTaskId || !response.newStatus) {
-            this.logger.warn(`AI could not identify a valid task from PROGRESS_UPDATE.`);
-            return {
-              data: null,
-              message: "I couldn't match your update to an existing task. Could you be more specific about what you accomplished?",
-              success: false,
-            };
-          }
-
-          const validTask = activeTasks.find((t) => t.id === response.targetTaskId);
-          if (!validTask) {
-            this.logger.error(`AI hallucinated targetTaskId: ${response.targetTaskId}`);
-            return {
-              data: null,
-              message: "I couldn't confidently match your update to an existing task. Could you be more specific?",
-              success: false,
-            };
-          }
-
-          const updatedTask = await this.prisma.task.update({
-            where: { id: response.targetTaskId },
-            data: { status: response.newStatus as TaskStatus },
-            include: { project: { select: { id: true, title: true, techStack: true } } },
-          });
-
-          if (response.newStatus === 'IN_PROGRESS') {
-            const existingCount = await this.prisma.resource.count({
-              where: { taskId: updatedTask.id },
-            });
-            if (existingCount === 0) {
-              await this.incubatorQueue.add(JOBS.TASK_RESEARCH, {
-                taskId: updatedTask.id,
-                projectId: updatedTask.project.id,
-                taskTitle: updatedTask.title,
-                projectTitle: updatedTask.project.title,
-                techStack: updatedTask.project.techStack,
-              });
-              this.logger.log(`Queued TASK_RESEARCH for task ${updatedTask.id} on IN_PROGRESS transition`);
-            }
-          }
-
-          await this.prisma.brainDump.update({
-            where: { id: initialBrainDump.id },
-            data: { status: BrainDumpStatus.PROCESSED, processedAt: new Date() },
-          });
-
-          this.logger.log(`Task "${updatedTask.title}" (${updatedTask.id}) updated to ${response.newStatus} for user ${user.id}.`);
-
-          return {
-            data: {
-              taskId: updatedTask.id,
-              taskTitle: updatedTask.title,
-              projectTitle: updatedTask.project.title,
-              newStatus: response.newStatus as TaskStatus,
-            },
-            message: response.acknowledgement || 'Progress updated safely!',
-            success: true,
-          };
-
-        case 'ARCHIVE_PROJECT':
-          if (validTargetProjectId) {
-            await this.prisma.project.update({
-              where: { id: validTargetProjectId },
-              data: { status: ProjectStatus.ARCHIVED },
-            });
-          }
-          break;
-
-        case 'UPDATE_PROJECT':
-          if (validTargetProjectId && response.projectUpdates) {
-            const { title, description, techStack } = response.projectUpdates;
-            const updatePayload: Prisma.ProjectUpdateInput = {};
-            if (title) updatePayload.title = title;
-            if (description) updatePayload.description = description;
-            if (techStack && techStack.length > 0) updatePayload.techStack = techStack;
-
-            if (Object.keys(updatePayload).length > 0) {
-              await this.prisma.project.update({
-                where: { id: validTargetProjectId },
-                data: updatePayload,
-              });
-            }
-          }
-          break;
-
-        case 'APPEND_NOTE':
-        case 'CREATE_PROJECT':
-        default:
-          break;
       }
 
       const updateData: any = {

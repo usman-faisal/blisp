@@ -108,3 +108,28 @@ export interface ProgressUpdateResponsePayload {
 }
 
 export type ProgressUpdateResponse = ApiResponse<ProgressUpdateResponsePayload | null>;
+
+export interface UpdateTaskStatusResponsePayload {
+  taskId: Task['id'];
+  taskTitle: Task['title'];
+  projectTitle: Project['title'];
+  newStatus: Task['status'];
+}
+
+export type UpdateTaskStatusResponse = ApiResponse<UpdateTaskStatusResponsePayload>;
+
+export interface ArchiveProjectResponsePayload {
+  id: Project['id'];
+  status: Project['status'];
+}
+
+export type ArchiveProjectResponse = ApiResponse<ArchiveProjectResponsePayload>;
+
+export interface UpdateProjectResponsePayload {
+  id: Project['id'];
+  title: Project['title'];
+  description: Project['description'];
+  techStack: Project['techStack'];
+}
+
+export type UpdateProjectResponse = ApiResponse<UpdateProjectResponsePayload>;
