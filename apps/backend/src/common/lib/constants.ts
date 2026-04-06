@@ -15,4 +15,5 @@ export const QUEUES = {
 export const JOBS = {
   RESEARCH: 'research',
   PLAN: 'plan',
+  TASK_RESEARCH: 'task_research',
 };
