@@ -6,6 +6,7 @@ import { TaskCard } from '@/components/ui/TaskCard';
 import { FloatingInput } from '@/components/FloatingInput';
 import { BlurTargetView } from 'expo-blur';
 import { useState, useRef, useCallback, useMemo } from 'react';
+import { useRouter } from 'expo-router';
 import { useProfile } from '@/hooks/useProfile';
 import { useDailyPlan } from '@/hooks/useDailyPlan';
 import Text from '@/components/ui/Text';
@@ -46,6 +47,7 @@ export default function FocusScreen() {
       }),
     [scrollY],
   );
+  const router = useRouter();
   const { data: profile } = useProfile();
   const { data: dailyPlan, isLoading: isPlanLoading, mutate } = useDailyPlan();
 
@@ -210,6 +212,7 @@ export default function FocusScreen() {
               title={task.title}
               priority="high"
               variant={CARD_VARIANTS[index % CARD_VARIANTS.length]}
+              onPress={() => router.push(`/task/${task.id}`)}
             />
           ))}
 

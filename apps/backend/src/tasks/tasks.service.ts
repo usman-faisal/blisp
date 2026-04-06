@@ -4,7 +4,7 @@ import { Queue } from 'bullmq';
 import { TaskStatus } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { JOBS, QUEUES } from 'src/common/lib/constants';
-import { UpdateTaskStatusResponse } from '@repo/types';
+import { GetTaskDetailResponse, UpdateTaskStatusResponse } from '@repo/types';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 
 @Injectable()
@@ -15,6 +15,50 @@ export class TasksService {
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUES.INCUBATOR) private readonly incubatorQueue: Queue,
   ) {}
+
+  async getTaskById(userId: string, taskId: string): Promise<GetTaskDetailResponse> {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, project: { userId } },
+      include: {
+        project: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            techStack: true,
+            status: true,
+            classification: true,
+          },
+        },
+        resources: {
+          select: {
+            id: true,
+            title: true,
+            summary: true,
+            url: true,
+            type: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task not found or you do not own it.');
+    }
+
+    return {
+      data: {
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        project: task.project,
+        resources: task.resources,
+      },
+      message: 'Task retrieved successfully.',
+      success: true,
+    };
+  }
 
   async updateTaskStatus(
     userId: string,
