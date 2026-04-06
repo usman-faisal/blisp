@@ -28,6 +28,8 @@ export class BrainDumpsProcessor extends WorkerHost {
         return this.handleResearchJob(job);
       case JOBS.PLAN:
         return this.handlePlanJob(job);
+      case JOBS.TASK_RESEARCH:
+        return this.handleTaskResearchJob(job);
       default:
         this.logger.warn(`Unknown job type: ${job.name}`);
     }
@@ -47,24 +49,6 @@ export class BrainDumpsProcessor extends WorkerHost {
       .replace('{{researchData}}', JSON.stringify(researchResults, null, 2));
 
     const researchSummary = await this.aiService.generateText(prompt);
-
-    await this.prisma.resource.deleteMany({
-      where: { projectId },
-    });
-
-    await Promise.all(
-      researchResults.map((res) =>
-        this.prisma.resource.create({
-          data: {
-            projectId,
-            title: res.title,
-            url: res.url,
-            summary: res.content || res.snippet,
-            type: 'RESEARCH',
-          },
-        }),
-      ),
-    );
 
     this.logger.log(`Phase 1 complete for project: ${projectId}. Triggering Phase 2.`);
 
@@ -106,16 +90,67 @@ export class BrainDumpsProcessor extends WorkerHost {
     );
 
     if (response.tasks && response.tasks.length > 0) {
-      await this.prisma.task.createMany({
-        data: response.tasks.map((task) => ({
-          projectId,
-          title: task.title,
-          status: 'TODO',
-        })),
-      });
+      const createdTasks = await this.prisma.$transaction(
+        response.tasks.map((task) =>
+          this.prisma.task.create({
+            data: {
+              projectId,
+              title: task.title,
+              status: 'TODO',
+              isImmediateNextStep: task.isImmediateNextStep,
+            },
+          }),
+        ),
+      );
+
+      const immediateTasks = createdTasks.filter((t) => t.isImmediateNextStep);
+      if (immediateTasks.length > 0) {
+        await Promise.all(
+          immediateTasks.map((task) =>
+            this.incubatorQueue.add(JOBS.TASK_RESEARCH, {
+              taskId: task.id,
+              projectId,
+              taskTitle: task.title,
+              projectTitle: title,
+              techStack,
+            }),
+          ),
+        );
+        this.logger.log(`Queued TASK_RESEARCH for ${immediateTasks.length} immediate task(s) in project ${projectId}`);
+      }
     }
 
     this.logger.log(`Phase 2 complete for project: ${projectId}. Action plan generated.`);
     return { tasksGenerated: response.tasks.length };
+  }
+
+  private async handleTaskResearchJob(job: Job<any>) {
+    const { taskId, projectId, taskTitle, projectTitle, techStack } = job.data;
+    this.logger.log(`TASK_RESEARCH: Fetching resources for task "${taskTitle}" (${taskId})`);
+
+    const searchQuery = `${taskTitle} — implementation guide, documentation, examples. Project: ${projectTitle}. Tech: ${techStack.join(', ')}`;
+    const searchResults = await this.aiService.search(searchQuery);
+
+    if (searchResults.length === 0) {
+      this.logger.warn(`TASK_RESEARCH: No results found for task ${taskId}`);
+      return;
+    }
+
+    await Promise.all(
+      searchResults.map((res) =>
+        this.prisma.resource.create({
+          data: {
+            projectId,
+            taskId,
+            title: res.title,
+            url: res.url,
+            summary: res.content || res.snippet,
+            type: 'RESEARCH',
+          },
+        }),
+      ),
+    );
+
+    this.logger.log(`TASK_RESEARCH: Stored ${searchResults.length} resources for task ${taskId}`);
   }
 }

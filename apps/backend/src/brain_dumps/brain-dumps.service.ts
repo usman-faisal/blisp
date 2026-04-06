@@ -105,8 +105,24 @@ export class BrainDumpsService {
           const updatedTask = await this.prisma.task.update({
             where: { id: response.targetTaskId },
             data: { status: response.newStatus as TaskStatus },
-            include: { project: { select: { title: true } } },
+            include: { project: { select: { id: true, title: true, techStack: true } } },
           });
+
+          if (response.newStatus === 'IN_PROGRESS') {
+            const existingCount = await this.prisma.resource.count({
+              where: { taskId: updatedTask.id },
+            });
+            if (existingCount === 0) {
+              await this.incubatorQueue.add(JOBS.TASK_RESEARCH, {
+                taskId: updatedTask.id,
+                projectId: updatedTask.project.id,
+                taskTitle: updatedTask.title,
+                projectTitle: updatedTask.project.title,
+                techStack: updatedTask.project.techStack,
+              });
+              this.logger.log(`Queued TASK_RESEARCH for task ${updatedTask.id} on IN_PROGRESS transition`);
+            }
+          }
 
           await this.prisma.brainDump.update({
             where: { id: initialBrainDump.id },
