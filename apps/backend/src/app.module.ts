@@ -13,6 +13,7 @@ import { BrainDumpsModule } from './brain_dumps/brain-dumps.module';
 import { AiModule } from './ai/ai.module';
 import { DailyPlanModule } from './daily_plan/daily-plan.module';
 import { ProjectsModule } from './projects/projects.module';
+import { TasksModule } from './tasks/tasks.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { ProjectsModule } from './projects/projects.module';
     AiModule,
     DailyPlanModule,
     ProjectsModule,
+    TasksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

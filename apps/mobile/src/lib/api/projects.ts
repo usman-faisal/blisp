@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { ActivateProjectResponse, GetProjectsResponse } from '@repo/types';
+import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, UpdateProjectResponse } from '@repo/types';
 /**
  * Activate an incubator project — moves it into the user's active focus.
  * POST /projects/:id/activate
@@ -20,5 +20,31 @@ export const getProjects = async (status?: string): Promise<GetProjectsResponse>
   const response = await apiClient.get<GetProjectsResponse>('/projects', {
     params: { status }
   });
+  return response.data;
+};
+
+/**
+ * Archive a project.
+ * PATCH /projects/:id/archive
+ */
+export const archiveProject = async (projectId: string): Promise<ArchiveProjectResponse> => {
+  const response = await apiClient.patch<ArchiveProjectResponse>(
+    `/projects/${projectId}/archive`,
+  );
+  return response.data;
+};
+
+/**
+ * Update a project's title, description, or tech stack.
+ * PATCH /projects/:id
+ */
+export const updateProject = async (
+  projectId: string,
+  data: { title?: string; description?: string; techStack?: string[] },
+): Promise<UpdateProjectResponse> => {
+  const response = await apiClient.patch<UpdateProjectResponse>(
+    `/projects/${projectId}`,
+    data,
+  );
   return response.data;
 };

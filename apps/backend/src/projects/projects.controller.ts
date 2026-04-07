@@ -1,10 +1,11 @@
-import { Controller, Param, ParseUUIDPipe, Post, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, ParseUUIDPipe, Patch, Post, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { User, ProjectStatus } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
-import { ActivateProjectResponse, GetProjectsResponse, GetProjectStatsResponse } from '@repo/types';
+import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectStatsResponse, UpdateProjectResponse } from '@repo/types';
 import { ProjectsService } from './projects.service';
+import { UpdateProjectDto } from './dto/update-project.dto';
 
 @ApiTags('projects')
 @ApiBearerAuth('JWT-auth')
@@ -28,6 +29,39 @@ export class ProjectsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ActivateProjectResponse> {
     return this.projectsService.activateProject(user.id, id);
+  }
+
+  @Patch(':id/archive')
+  @ApiOperation({
+    summary: 'Archive a project',
+    description: 'Sets a project status to ARCHIVED. It will no longer appear in daily plans.',
+  })
+  @ApiParam({ name: 'id', description: 'Project UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Project archived successfully.' })
+  @ApiResponse({ status: 404, description: 'Project not found or not owned by the user.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async archiveProject(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ArchiveProjectResponse> {
+    return this.projectsService.archiveProject(user.id, id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Update a project',
+    description: 'Updates the title, description, or tech stack of a project.',
+  })
+  @ApiParam({ name: 'id', description: 'Project UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Project updated successfully.' })
+  @ApiResponse({ status: 404, description: 'Project not found or not owned by the user.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async updateProject(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateProjectDto,
+  ): Promise<UpdateProjectResponse> {
+    return this.projectsService.updateProject(user.id, id, dto);
   }
 
   @Get('stats')

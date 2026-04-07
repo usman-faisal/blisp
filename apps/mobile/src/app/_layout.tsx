@@ -19,7 +19,17 @@ export default function Layout() {
             <AxiosProvider>
                 <QueryClientProvider client={queryClient}>
                     <SafeAreaProvider>
-                        <Stack screenOptions={{ headerShown: false }} />
+                        <Stack screenOptions={{ headerShown: false }}>
+                            <Stack.Screen name="(auth)" />
+                            <Stack.Screen name="(tabs)" />
+                            <Stack.Screen
+                                name="task/[id]"
+                                options={{
+                                    presentation: 'modal',
+                                    animation: 'slide_from_bottom',
+                                }}
+                            />
+                        </Stack>
                     </SafeAreaProvider>
                 </QueryClientProvider>
             </AxiosProvider>
