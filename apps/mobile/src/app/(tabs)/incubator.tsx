@@ -5,6 +5,7 @@ import { useProjectPipeline } from '@/hooks/useProjectPipeline';
 import { activateProject } from '@/lib/api/projects';
 import { PipelineProgress } from '@/components/PipelineProgress';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
@@ -12,6 +13,7 @@ import {
   Pressable,
   ActivityIndicator,
   Animated,
+  RefreshControl,
 } from 'react-native';
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -227,9 +229,18 @@ function EmptyState() {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function IncubatorScreen() {
-  const { data: projects, isLoading, mutate } = useIncubatorProjects();
+  const { data: projects, isLoading, mutate, startPolling, stopPolling } = useIncubatorProjects();
   const [activatingId, setActivatingId] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      mutate();
+      startPolling();
+      return stopPolling;
+    }, [mutate, startPolling, stopPolling]),
+  );
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '' });
 
   const handleActivate = useCallback(
@@ -256,6 +267,17 @@ export default function IncubatorScreen() {
     setToast({ visible: false, message: '' });
   }, []);
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([mutate()]);
+    } catch (error) {
+      console.error('[IncubatorScreen] Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [mutate]);
+
   const visibleProjects = projects?.filter((p) => !removedIds.has(p.id));
 
   return (
@@ -279,6 +301,7 @@ export default function IncubatorScreen() {
         className="mt-4"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#C9A84C" />}
       >
         {/* Loading state (initial fetch) */}
         {isLoading && (

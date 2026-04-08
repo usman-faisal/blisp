@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { getProjects } from '../lib/api/projects';
 
 export interface Resource {
@@ -16,81 +16,15 @@ export interface IncubatorProject {
   resources: Resource[];
 }
 
-const MOCK_PROJECTS: IncubatorProject[] = [
-  {
-    id: 'inc-1',
-    title: 'AI-Powered Recipe Generator',
-    description:
-      'A web app that generates personalized recipes based on available ingredients, dietary restrictions, and cuisine preferences using GPT-4.',
-    techStack: ['Next.js', 'OpenAI', 'Prisma', 'Tailwind'],
-    resources: [
-      {
-        id: 'r1',
-        title: 'Recipe API Comparison',
-        summary:
-          'Spoonacular offers the best free tier for ingredient parsing (150 req/day). Edamam has stronger nutrition data. Recommend Spoonacular for MVP, migrate to custom model later.',
-        source: 'AI Research',
-      },
-      {
-        id: 'r2',
-        title: 'Prompt Engineering for Recipes',
-        summary:
-          'Few-shot prompting with 3 example recipes yields 87% user satisfaction vs. 62% with zero-shot. Include cuisine style, cook time constraint, and skill level in system prompt.',
-        source: 'AI Research',
-      },
-    ],
-  },
-  {
-    id: 'inc-2',
-    title: 'Local-First Habit Tracker',
-    description:
-      'A privacy-focused habit tracking app that syncs across devices using CRDTs, with streak analytics and gentle push notifications.',
-    techStack: ['React Native', 'SQLite', 'CRDT', 'Expo'],
-    resources: [
-      {
-        id: 'r3',
-        title: 'CRDT Implementation Strategy',
-        summary:
-          'Yjs is the most mature CRDT library for JS. For a habit tracker, a simple LWW-Register per habit entry is sufficient. Full Yjs may be overkill — consider Automerge for simpler API.',
-        source: 'AI Research',
-      },
-    ],
-  },
-  {
-    id: 'inc-3',
-    title: 'Developer Portfolio CMS',
-    description:
-      'A headless CMS specifically designed for developer portfolios, with GitHub integration, project showcase templates, and blog support.',
-    techStack: ['Astro', 'MDX', 'GitHub API', 'Vercel'],
-    resources: [
-      {
-        id: 'r4',
-        title: 'Static Site Generator Comparison',
-        summary:
-          'Astro outperforms Next.js for content-heavy sites by 3x on Lighthouse scores. Content Collections API simplifies MDX management. Recommend Astro + Vercel for zero-config deployment.',
-        source: 'AI Research',
-      },
-      {
-        id: 'r5',
-        title: 'GitHub API Integration',
-        summary:
-          'GraphQL API v4 allows fetching pinned repos, contribution graph, and language stats in a single query. Rate limit is 5,000 req/hr with PAT — more than enough for build-time fetching.',
-        source: 'AI Research',
-      },
-    ],
-  },
-];
+const POLL_INTERVAL_MS = 5000;
 
-/**
- * Mock hook — mirrors React Query's { data, isLoading, mutate } shape.
- * Swap the body for a real `useQuery` call hitting GET /projects?status=INCUBATOR.
- */
 export function useIncubatorProjects() {
   const [data, setData] = useState<IncubatorProject[] | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchProjects = useCallback(async () => {
-    setIsLoading(true);
+  const fetchProjects = useCallback(async (showLoading = false) => {
+    if (showLoading) setIsLoading(true);
     try {
       const response = await getProjects('INCUBATOR');
       if (response.success) {
@@ -110,22 +44,32 @@ export function useIncubatorProjects() {
       }
     } catch (error) {
       console.error('Error fetching incubator projects:', error);
-      // Fallback for demo or error states can be MOCK_PROJECTS if needed,
-      // but to match actual data flow we'll not set it here.
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   }, []);
 
-  // Initial fetch
+  const startPolling = useCallback(() => {
+    if (intervalRef.current) return;
+    intervalRef.current = setInterval(() => fetchProjects(false), POLL_INTERVAL_MS);
+  }, [fetchProjects]);
+
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+    fetchProjects(true);
+    startPolling();
+    return stopPolling;
+  }, [fetchProjects, startPolling, stopPolling]);
 
-  /** Call mutate() to re-fetch the incubator list (e.g. after activating a project). */
   const mutate = useCallback(() => {
-    fetchProjects();
+    fetchProjects(false);
   }, [fetchProjects]);
 
-  return { data, isLoading, mutate };
+  return { data, isLoading, mutate, startPolling, stopPolling };
 }

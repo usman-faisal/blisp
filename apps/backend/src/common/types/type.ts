@@ -30,3 +30,11 @@ export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
 }
+
+export interface TavilyResult {
+  title: string;
+  url: string;
+  content: string;
+  snippet?: string;
+  score: number;
+}

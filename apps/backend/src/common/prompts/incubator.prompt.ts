@@ -34,9 +34,14 @@ Instructions:
 1. Generate a list of specific, granular tasks that need to be completed to build this project.
 2. Each task should be technical and actionable.
 3. Group tasks logically (e.g., Setup, Backend, Frontend, Deployment).
-4. Return the tasks in a structured format suitable for database insertion.
+4. IMPORTANT: Only generate tasks that directly implement what the user described in their transcript. Do not add tasks based on patterns found in research results unless explicitly requested by the user. Do not invent requirements.
+5. For each task, generate 1-2 highly specific search queries that would find the best implementation resources for that exact task. Include library names, specific patterns, and version-relevant terms where applicable.
+6. Generate a 1-sentence morning briefing that warmly summarizes what the user will focus on first, referencing the project title and the most immediate task.
 
-Return a JSON array of tasks, where each task has:
-- title: string (concise, actionable)
-- status: "TODO"
+Return a structured response with:
+- tasks: array of objects, each with:
+  - title: string (concise, actionable, max 10 words)
+  - status: "TODO"
+  - resourceQueries: string[] (1-2 specific search queries)
+- morningBriefing: string (1 sentence, friendly and specific)
 `;

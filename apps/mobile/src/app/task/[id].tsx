@@ -14,6 +14,7 @@ import {
   Animated,
   Linking,
   Alert,
+  RefreshControl,
 } from 'react-native';
 
 /* ------------------------------------------------------------------ */
@@ -172,6 +173,7 @@ export default function TaskDetailScreen() {
 
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Optimistic status so the UI feels instant
   const [optimisticStatus, setOptimisticStatus] = useState<TaskStatusKey | null>(null);
@@ -230,6 +232,18 @@ export default function TaskDetailScreen() {
     );
   }, [task, router]);
 
+  /* --- Refresh ------------------------------------------------------- */
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([mutate()]);
+    } catch (error) {
+      console.error('[TaskDetailScreen] Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [mutate]);
+
   return (
     <Container className="bg-core-background">
       {/* ── Header ─────────────────────────────────────────────────── */}
@@ -266,6 +280,7 @@ export default function TaskDetailScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 60, paddingHorizontal: 20 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#E8612A" />}
         >
           {/* Task title */}
           <Text className="mt-2 font-heading text-2xl leading-tight text-core-text-primary">

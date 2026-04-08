@@ -5,12 +5,14 @@ import { useProjectStats } from '@/hooks/useProjectStats';
 import { useAuth } from '@clerk/expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   View,
   ScrollView,
   Pressable,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from 'react-native';
 
 function SettingsRow({
@@ -80,7 +82,9 @@ export default function ProfileScreen() {
   const { data: profile, isLoading } = useProfile();
   const { data: stats, isLoading: isStatsLoading } = useProjectStats();
   const { signOut } = useAuth();
+  const queryClient = useQueryClient();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleSignOut = useCallback(() => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -102,11 +106,26 @@ export default function ProfileScreen() {
     ]);
   }, [signOut]);
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['profile'] }),
+        queryClient.invalidateQueries({ queryKey: ['projectStats'] }),
+      ]);
+    } catch (error) {
+      console.error('[ProfileScreen] Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [queryClient]);
+
   return (
     <Container className="bg-core-background px-4">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#C9A84C" />}
       >
         {/* Header */}
         <View className="mt-4 mb-6">

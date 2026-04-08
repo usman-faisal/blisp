@@ -1,6 +1,6 @@
 import { Avatar } from '@/components/ui/Avatar';
 import { Container } from '@/components/ui/Container';
-import { Animated, ScrollView, View, ActivityIndicator, Pressable } from 'react-native';
+import { Animated, ScrollView, View, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { TaskCard } from '@/components/ui/TaskCard';
 import { FloatingInput } from '@/components/FloatingInput';
@@ -113,6 +113,7 @@ function SubmissionToast({
 export default function FocusScreen() {
   const [query, setQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<{ visible: boolean; projectTitle: string }>({
     visible: false,
     projectTitle: '',
@@ -223,6 +224,17 @@ export default function FocusScreen() {
     }
   }, [recording, mutate]);
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([mutate()]);
+    } catch (error) {
+      console.error('[FocusScreen] Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [mutate]);
+
   return (
     <Container className="bg-core-background">
       <Animated.View
@@ -265,6 +277,7 @@ export default function FocusScreen() {
             { useNativeDriver: true },
           )}
           scrollEventThrottle={16}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#E8612A" />}
         >
           {/* Section header */}
           <View className="mb-2 flex-row items-center justify-between">

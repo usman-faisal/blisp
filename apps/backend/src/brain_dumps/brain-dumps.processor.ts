@@ -10,6 +10,7 @@ import { PipelineEventsService } from 'src/pipeline_events/pipeline-events.servi
 import { PipelineStage } from '@repo/db';
 import { INCUBATOR_RESEARCH_PROMPT, INCUBATOR_PLAN_PROMPT } from 'src/common/prompts/incubator.prompt';
 import { z } from 'zod';
+import { TavilyResult } from 'src/common/types/type';
 
 @Processor(QUEUES.INCUBATOR)
 export class BrainDumpsProcessor extends WorkerHost {
@@ -95,11 +96,11 @@ export class BrainDumpsProcessor extends WorkerHost {
         z.object({
           title: z.string(),
           status: z.literal('TODO'),
+          resourceQueries: z.array(z.string()).max(2)
+            .describe('1-2 highly specific search queries to find implementation resources for this exact task. Be precise — include library names, versions, specific patterns.'),
         }),
       ),
-      morningBriefing: z
-        .string()
-        .describe('A 1-sentence friendly greeting explaining what the user will focus on next based on this research.'),
+      morningBriefing: z.string(),
     });
 
     const response = await this.aiService.generateStructuredData(
@@ -117,6 +118,7 @@ export class BrainDumpsProcessor extends WorkerHost {
               projectId,
               title: task.title,
               status: 'TODO',
+              resourceQueries: task.resourceQueries,
             },
           }),
         ),
@@ -151,29 +153,64 @@ export class BrainDumpsProcessor extends WorkerHost {
 
   private async handleTaskResearchJob(job: Job<any>) {
     const { taskId, projectId, taskTitle, projectTitle, techStack } = job.data;
-    this.logger.log(`TASK_RESEARCH: Fetching resources for task "${taskTitle}" (${taskId})`);
 
     await this.pipelineEvents.emit(
       projectId,
       PipelineStage.RESOURCE_FETCH_STARTED,
-      `Fetching resources for "${taskTitle}"`,
+      `Finding resources for "${taskTitle}"`,
     );
 
-    const searchQuery = `${taskTitle} — implementation guide, documentation, examples. Project: ${projectTitle}. Tech: ${techStack.join(', ')}`;
-    const searchResults = await this.aiService.search(searchQuery);
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      select: { resourceQueries: true },
+    });
 
-    if (searchResults.length === 0) {
-      this.logger.warn(`TASK_RESEARCH: No results found for task ${taskId}`);
+    const queries = task?.resourceQueries?.length
+      ? task.resourceQueries
+      : [`${taskTitle} ${techStack.join(' ')} tutorial`];
+
+    const allResults: TavilyResult[] = [];
+    const seenUrls = new Set<string>();
+
+    for (const query of queries) {
+      const results = await this.aiService.search(query);
+      for (const r of results) {
+        if (!seenUrls.has(r.url)) {
+          seenUrls.add(r.url);
+          allResults.push(r);
+        }
+      }
+    }
+
+    if (allResults.length === 0) {
       await this.pipelineEvents.emit(
         projectId,
         PipelineStage.RESOURCE_FETCH_COMPLETED,
-        `No resources found for "${taskTitle}"`,
+        `No additional resources found for "${taskTitle}"`,
       );
       return;
     }
 
+    // LLM picks the top 1-2 most relevant
+    const rankingPrompt = `Task: "${taskTitle}" (Project: ${projectTitle}, Stack: ${techStack.join(', ')})
+
+Here are search results. Pick the 1-2 MOST relevant resources that would directly help someone implement this specific task. Return only the indices (0-based) as a JSON array of numbers.
+
+${allResults.map((r, i) => `[${i}] ${r.title} — ${r.url}\n${r.snippet || ''}`).join('\n\n')}`;
+
+    const ranked = await this.aiService.generateStructuredData(
+      rankingPrompt,
+      z.object({ indices: z.array(z.number()).max(2) }),
+      'ResourceRanking',
+      'You are a technical resource curator. Be selective — only pick resources that directly address the task.',
+    );
+
+    const topResults = ranked.indices
+      .filter(i => i >= 0 && i < allResults.length)
+      .map(i => allResults[i]);
+
     await Promise.all(
-      searchResults.map((res) =>
+      topResults.map((res) =>
         this.prisma.resource.create({
           data: {
             projectId,
@@ -190,9 +227,7 @@ export class BrainDumpsProcessor extends WorkerHost {
     await this.pipelineEvents.emit(
       projectId,
       PipelineStage.RESOURCE_FETCH_COMPLETED,
-      `Found ${searchResults.length} resources for "${taskTitle}"`,
+      `Found ${topResults.length} resource(s) for "${taskTitle}"`,
     );
-
-    this.logger.log(`TASK_RESEARCH: Stored ${searchResults.length} resources for task ${taskId}`);
   }
 }

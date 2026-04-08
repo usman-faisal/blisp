@@ -66,6 +66,20 @@ export class DailyPlanCronService {
       return;
     }
 
+    // Roll over incomplete tasks from previous plans
+    await this.prisma.task.updateMany({
+      where: {
+        status: TaskStatus.TODO,
+        dailyPlanId: { not: null },
+        plannedFor: { lt: today },
+        project: { userId, status: ProjectStatus.ACTIVE },
+      },
+      data: {
+        dailyPlanId: null,
+        plannedFor: null,
+      },
+    });
+    
     const backlogTasks = await this.prisma.task.findMany({
       where: {
         dailyPlanId: null,

@@ -1,7 +1,7 @@
 import { Avatar } from '@/components/ui/Avatar';
 import { Container } from '@/components/ui/Container';
 import { Stack } from 'expo-router';
-import { ScrollView, View, ActivityIndicator, Pressable } from 'react-native';
+import { ScrollView, View, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { TaskCard } from '@/components/ui/TaskCard';
 import { FloatingInput } from '@/components/FloatingInput';
@@ -21,6 +21,7 @@ export default function Home() {
   // ── Text brain-dump state ────────────────────────────────────
   const [query, setQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // ── Audio recording state ────────────────────────────────────
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -96,6 +97,17 @@ export default function Home() {
     }
   }, [recording, mutate]);
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([mutate()]);
+    } catch (error) {
+      console.error('[Home] Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [mutate]);
+
   return (
     <Container className="bg-core-background px-4">
       <Stack.Screen options={{ headerShown: false }} />
@@ -121,6 +133,7 @@ export default function Home() {
           className="mt-6"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 140 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#E8612A" />}
         >
           {/* Section header */}
           <View className="mb-2 flex-row items-center justify-between">

@@ -1,12 +1,14 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { generateText, LanguageModel, Output } from 'ai';
+import { TavilyResult } from 'src/common/types/type';
 import { ZodType } from 'zod';
 
 @Injectable()
 export class AiService {
+  private logger = new Logger(AiService.name);
   private readonly model: LanguageModel;
 
   constructor(private readonly configService: ConfigService) {
@@ -74,7 +76,7 @@ export class AiService {
     }
   }
 
-  async search(query: string): Promise<any[]> {
+  async search(query: string, depth: 'basic' | 'advanced' = 'basic'): Promise<TavilyResult[]> {
     const TAVILY_API_KEY = this.configService.get<string>('TAVILY_API_KEY');
     if (!TAVILY_API_KEY) {
       console.warn('TAVILY_API_KEY is not set. Skipping search.');
@@ -90,11 +92,16 @@ export class AiService {
         body: JSON.stringify({
           api_key: TAVILY_API_KEY,
           query,
-          search_depth: 'advanced',
-          include_answer: true,
-          max_results: 5,
+          search_depth: depth,
+          include_answer: false,
+          max_results: depth === 'advanced' ? 5 : 3,
         }),
       });
+
+      if (!response.ok) {
+        this.logger.warn(`Tavily returned ${response.status} for query: "${query}"`);
+        return [];
+      }
 
       const data = await response.json();
       return data.results || [];
