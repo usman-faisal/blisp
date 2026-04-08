@@ -19,7 +19,7 @@ export class BrainDumpsService {
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
     @InjectQueue(QUEUES.INCUBATOR) private readonly incubatorQueue: Queue,
-  ) { }
+  ) {}
 
   async createBrainDump(
     user: User,
@@ -37,17 +37,8 @@ export class BrainDumpsService {
     try {
       this.logger.log('Processing brain dump for user:', user.id);
 
-      const existingProjects = await this.prisma.project.findMany({
-        where: { userId: user.id, status: { not: ProjectStatus.ARCHIVED } },
-        select: { id: true, title: true, description: true, status: true },
-      });
-
-      const promptContext =
-        `Existing Projects:\n${JSON.stringify(existingProjects, null, 2)}\n\n` +
-        `User Transcript: "${rawTranscript}"\n`;
-
       const response = await this.aiService.generateStructuredData(
-        promptContext,
+        `User Transcript: "${rawTranscript}"`,
         BrainDumpExtractionSchema,
         'BrainDump',
         BRAIN_DUMP_SYSTEM_PROMPT,
@@ -55,62 +46,40 @@ export class BrainDumpsService {
 
       this.logger.log('Brain dump processed successfully for user:', user.id);
 
-      let validTargetProjectId = response.targetProjectId;
-      if (validTargetProjectId) {
-        const exists = existingProjects.find(p => p.id === validTargetProjectId);
-        if (!exists) {
-          this.logger.warn(`AI provided invalid targetProjectId: ${validTargetProjectId}`);
-          validTargetProjectId = null;
-        }
-      }
-
-      const updateData: any = {
-        status: BrainDumpStatus.PROCESSED,
-        processedAt: new Date(),
-      };
-
-      if (response.intent === 'CREATE_PROJECT') {
-        updateData.projects = {
-          create: {
-            userId: user.id,
-            title: response.title,
-            description: response.summary,
-            classification: response.classification,
-            status: response.suggestedStatus,
-            techStack: response.techStack,
-          },
-        };
-      } else if (validTargetProjectId) {
-        updateData.projects = {
-          connect: { id: validTargetProjectId },
-        };
-      }
-
       const processedBrainDump = await this.prisma.brainDump.update({
         where: { id: initialBrainDump.id },
-        data: updateData,
+        data: {
+          status: BrainDumpStatus.PROCESSED,
+          processedAt: new Date(),
+          projects: {
+            create: {
+              userId: user.id,
+              title: response.title,
+              description: response.summary,
+              classification: response.classification,
+              status: response.suggestedStatus,
+              techStack: response.techStack,
+            },
+          },
+        },
         include: {
           projects: {
-            include: {
-              tasks: true,
-            },
+            include: { tasks: true },
           },
         },
       });
 
       const project = processedBrainDump.projects[0];
 
-      if (response.intent === 'CREATE_PROJECT' && project) {
-        this.logger.log(`Registering research job for ${project.status} project: ${project.id}`);
-        await this.incubatorQueue.add(JOBS.RESEARCH, {
-          projectId: project.id,
-          userId: user.id,
-          title: project.title,
-          summary: project.description,
-          techStack: project.techStack,
-          rawTranscript: initialBrainDump.rawTranscript,
-        });
-      }
+      this.logger.log(`Registering research job for ${project.status} project: ${project.id}`);
+      await this.incubatorQueue.add(JOBS.RESEARCH, {
+        projectId: project.id,
+        userId: user.id,
+        title: project.title,
+        summary: project.description,
+        techStack: project.techStack,
+        rawTranscript: initialBrainDump.rawTranscript,
+      });
 
       return {
         data: {

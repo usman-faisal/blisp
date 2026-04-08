@@ -36,6 +36,17 @@ enum BrainDumpStatus {
   FAILED
 }
 
+enum PipelineStage {
+  RESEARCH_STARTED
+  RESEARCH_COMPLETED
+  PLAN_STARTED
+  PLAN_COMPLETED
+  DAILY_PLAN_STARTED
+  DAILY_PLAN_COMPLETED
+  RESOURCE_FETCH_STARTED
+  RESOURCE_FETCH_COMPLETED
+}
+
 model User {
   id               String         @id @unique
   name             String
@@ -92,10 +103,11 @@ model Project {
   techStack      String[]       @map("tech_stack")
   createdAt      DateTime       @default(now()) @map("created_at")
 
-  originDump     BrainDump?     @relation(fields: [originDumpId], references: [id])
+  originDump     BrainDump?      @relation(fields: [originDumpId], references: [id])
   tasks          Task[]
   resources      Resource[]
-  user           User           @relation(fields: [userId], references: [id])
+  pipelineEvents ProjectEvent[]
+  user           User            @relation(fields: [userId], references: [id])
 
   @@map("projects")
 }
@@ -106,7 +118,6 @@ model Task {
   dailyPlanId         String?     @map("daily_plan_id") @db.Uuid
   title               String      @db.VarChar(255)
   status              TaskStatus  @default(TODO)
-  isImmediateNextStep Boolean     @default(false) @map("is_immediate_next_step")
   createdAt           DateTime    @default(now()) @map("created_at")
   plannedFor          DateTime?   @db.Date
 
@@ -131,6 +142,19 @@ model Resource {
   task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
   @@map("resources")
+}
+
+model ProjectEvent {
+  id        String        @id @default(uuid()) @db.Uuid
+  projectId String        @map("project_id") @db.Uuid
+  stage     PipelineStage
+  message   String?       @db.Text
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_events")
 }
 
 model DailyPlan {

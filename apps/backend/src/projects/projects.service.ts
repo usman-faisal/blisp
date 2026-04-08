@@ -3,12 +3,16 @@ import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectStatus, Prisma } from '@repo/db';
 import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectStatsResponse, UpdateProjectResponse } from '@repo/types';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { DailyPlanCronService } from 'src/daily_plan/daily-plan.service';
 
 @Injectable()
 export class ProjectsService {
   private readonly logger = new Logger(ProjectsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dailyPlanCronService: DailyPlanCronService,
+  ) {}
 
   /**
    * Promotes a project from INCUBATOR → ACTIVE.
@@ -42,6 +46,11 @@ export class ProjectsService {
 
     this.logger.log(
       `Project "${updatedProject.title}" (${projectId}) promoted to ACTIVE for user ${userId}.`,
+    );
+
+    // Fire daily plan immediately so tasks appear without waiting for the hourly cron
+    this.dailyPlanCronService.processUserPlan(userId).catch((err) =>
+      this.logger.error('processUserPlan failed after project activation', err),
     );
 
     return {

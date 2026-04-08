@@ -1,10 +1,12 @@
-import type { 
-  Task, 
-  DailyPlan, 
-  Resource, 
-  Project, 
+import type {
+  Task,
+  DailyPlan,
+  Resource,
+  Project,
   BrainDump,
-  User
+  User,
+  PipelineStage,
+  ProjectEvent,
 } from '@repo/db';
 
 export interface ApiResponse<T = void> {
@@ -143,6 +145,21 @@ export interface ArchiveProjectResponsePayload {
 }
 
 export type ArchiveProjectResponse = ApiResponse<ArchiveProjectResponsePayload>;
+
+export interface PipelineEventPayload {
+  id: ProjectEvent['id'];
+  stage: PipelineStage;
+  message: ProjectEvent['message'];
+  createdAt: string;
+}
+
+export interface ProjectPipelineResponsePayload {
+  projectId: Project['id'];
+  projectTitle: Project['title'];
+  events: PipelineEventPayload[];
+}
+
+export type GetProjectPipelineResponse = ApiResponse<ProjectPipelineResponsePayload>;
 
 export interface UpdateProjectResponsePayload {
   id: Project['id'];

@@ -1,13 +1,19 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectStatus, TaskStatus } from '@repo/db';
 import { GetTodayPlanResponse, PullNextTaskResponse } from '@repo/types';
+import { JOBS, QUEUES } from 'src/common/lib/constants';
 
 @Injectable()
 export class DailyPlansService {
   private readonly logger = new Logger(DailyPlansService.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue(QUEUES.INCUBATOR) private readonly incubatorQueue: Queue,
+  ) { }
 
   /**
    * Pulls exactly one additional backlog task into the user's plan for today.
@@ -37,7 +43,7 @@ export class DailyPlansService {
       },
       orderBy: { createdAt: 'asc' },
       include: {
-        project: { select: { title: true } },
+        project: { select: { id: true, title: true, techStack: true } },
       },
     });
 
@@ -58,9 +64,24 @@ export class DailyPlansService {
         plannedFor: today,
       },
       include: {
-        project: { select: { title: true } },
+        project: { select: { id: true, title: true, techStack: true } },
       },
     });
+
+    const existingResources = await this.prisma.resource.count({
+      where: { taskId: updatedTask.id },
+    });
+
+    if (existingResources === 0) {
+      await this.incubatorQueue.add(JOBS.TASK_RESEARCH, {
+        taskId: updatedTask.id,
+        projectId: updatedTask.project.id,
+        taskTitle: updatedTask.title,
+        projectTitle: updatedTask.project.title,
+        techStack: updatedTask.project.techStack,
+      });
+      this.logger.log(`Queued TASK_RESEARCH for pulled task ${updatedTask.id}`);
+    }
 
     this.logger.log(
       `Pulled task "${updatedTask.title}" (${updatedTask.id}) into plan ${todayPlan.id} for user ${userId}.`,

@@ -3,8 +3,9 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags }
 import { User, ProjectStatus } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
-import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectStatsResponse, UpdateProjectResponse } from '@repo/types';
+import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectStatsResponse, GetProjectPipelineResponse, UpdateProjectResponse } from '@repo/types';
 import { ProjectsService } from './projects.service';
+import { PipelineEventsService } from 'src/pipeline_events/pipeline-events.service';
 import { UpdateProjectDto } from './dto/update-project.dto';
 
 @ApiTags('projects')
@@ -12,7 +13,10 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 @UseGuards(AuthGuard)
 @Controller('projects')
 export class ProjectsController {
-  constructor(private readonly projectsService: ProjectsService) {}
+  constructor(
+    private readonly projectsService: ProjectsService,
+    private readonly pipelineEventsService: PipelineEventsService,
+  ) {}
 
   @Post(':id/activate')
   @ApiOperation({
@@ -62,6 +66,21 @@ export class ProjectsController {
     @Body() dto: UpdateProjectDto,
   ): Promise<UpdateProjectResponse> {
     return this.projectsService.updateProject(user.id, id, dto);
+  }
+
+  @Get(':id/pipeline')
+  @ApiOperation({
+    summary: 'Get project pipeline events',
+    description: 'Returns the processing pipeline status for a project (research, planning, etc.).',
+  })
+  @ApiParam({ name: 'id', description: 'Project UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Pipeline events retrieved.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getProjectPipeline(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<GetProjectPipelineResponse> {
+    return this.pipelineEventsService.getProjectPipeline(user.id, id);
   }
 
   @Get('stats')

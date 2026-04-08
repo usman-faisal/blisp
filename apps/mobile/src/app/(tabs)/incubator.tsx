@@ -1,7 +1,9 @@
 import { Container } from '@/components/ui/Container';
 import Text from '@/components/ui/Text';
 import { useIncubatorProjects, IncubatorProject } from '@/hooks/useIncubatorProjects';
+import { useProjectPipeline } from '@/hooks/useProjectPipeline';
 import { activateProject } from '@/lib/api/projects';
+import { PipelineProgress } from '@/components/PipelineProgress';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
@@ -11,6 +13,8 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
 
 function Toast({
   message,
@@ -42,16 +46,8 @@ function Toast({
 
       const timer = setTimeout(() => {
         Animated.parallel([
-          Animated.timing(translateY, {
-            toValue: 100,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacity, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
+          Animated.timing(translateY, { toValue: 100, duration: 300, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
         ]).start(() => onDismiss());
       }, 3000);
 
@@ -78,25 +74,30 @@ function Toast({
         <View className="h-8 w-8 items-center justify-center rounded-full bg-brand-sage">
           <Ionicons name="checkmark" size={18} color="#FFFFFF" />
         </View>
-        <Text className="flex-1 text-sm leading-5 text-core-background">
-          {message}
-        </Text>
+        <Text className="flex-1 text-sm leading-5 text-core-background">{message}</Text>
       </View>
     </Animated.View>
   );
 }
 
+// ─── Tech chip ────────────────────────────────────────────────────────────────
+
 function TechChip({ label }: { label: string }) {
   return (
     <View className="rounded-full bg-core-surface px-3 py-1">
-      <Text className="text-xs font-medium text-core-text-secondary">
-        {label}
-      </Text>
+      <Text className="text-xs font-medium text-core-text-secondary">{label}</Text>
     </View>
   );
 }
 
-function ProjectCard({
+// ─── Pipeline-aware project card ──────────────────────────────────────────────
+
+/**
+ * Each card polls its own pipeline independently.
+ * While processing → shows PipelineProgress.
+ * Once complete (or never had events) → shows the normal ProjectCard.
+ */
+function IncubatorCard({
   project,
   onActivate,
   isActivating,
@@ -105,12 +106,31 @@ function ProjectCard({
   onActivate: (id: string) => void;
   isActivating: boolean;
 }) {
+  const { data: pipeline, isLoading: isPipelineLoading, isComplete } = useProjectPipeline(project.id);
+
+  const hasEvents = (pipeline?.events.length ?? 0) > 0;
+  const isProcessing = hasEvents && !isComplete;
+
+  // While pipeline data is loading for the first time, show a subtle skeleton
+  if (isPipelineLoading) {
+    return <SkeletonCard />;
+  }
+
+  // Project is still being processed — show pipeline view
+  if (isProcessing) {
+    return (
+      <PipelineProgress
+        events={pipeline!.events}
+        projectTitle={project.title}
+      />
+    );
+  }
+
+  // Done (or no pipeline events) — show the full project card
   return (
     <View className="mb-4 overflow-hidden rounded-3xl bg-core-surface-elevated p-5">
       {/* Title & description */}
-      <Text className="font-heading text-lg text-core-text-primary">
-        {project.title}
-      </Text>
+      <Text className="font-heading text-lg text-core-text-primary">{project.title}</Text>
       <Text className="mt-1.5 text-sm leading-5 text-core-text-secondary">
         {project.description}
       </Text>
@@ -161,15 +181,15 @@ function ProjectCard({
         ) : (
           <>
             <Ionicons name="rocket-outline" size={16} color="#C9A84C" />
-            <Text className="text-sm font-semibold text-brand-flax">
-              Activate Project
-            </Text>
+            <Text className="text-sm font-semibold text-brand-flax">Activate Project</Text>
           </>
         )}
       </Pressable>
     </View>
   );
 }
+
+// ─── Skeleton & empty state ───────────────────────────────────────────────────
 
 function SkeletonCard() {
   return (
@@ -198,12 +218,13 @@ function EmptyState() {
         No ideas incubating yet
       </Text>
       <Text className="mt-2 text-center text-sm leading-5 text-core-text-secondary">
-        Record a brain dump to start. Your AI co-pilot will research and plan
-        projects for you.
+        Record a brain dump to start. Your AI co-pilot will research and plan projects for you.
       </Text>
     </View>
   );
 }
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function IncubatorScreen() {
   const { data: projects, isLoading, mutate } = useIncubatorProjects();
@@ -216,22 +237,14 @@ export default function IncubatorScreen() {
       setActivatingId(projectId);
       try {
         await activateProject(projectId);
-
-        // Remove the project from the visible list
         setRemovedIds((prev) => new Set(prev).add(projectId));
-
-        // Show success toast
         setToast({
           visible: true,
-          message:
-            'Added to your focus. Tasks will appear in your next daily plan.',
+          message: 'Added to your focus. Tasks will appear in your next daily plan.',
         });
       } catch (error) {
         console.error('[Incubator] Activation failed:', error);
-        setToast({
-          visible: true,
-          message: 'Something went wrong. Please try again.',
-        });
+        setToast({ visible: true, message: 'Something went wrong. Please try again.' });
       } finally {
         setActivatingId(null);
       }
@@ -255,9 +268,7 @@ export default function IncubatorScreen() {
             Incubator
           </Text>
         </View>
-        <Text className="mt-1 font-heading text-3xl text-core-text-primary">
-          Ideas Brewing
-        </Text>
+        <Text className="mt-1 font-heading text-3xl text-core-text-primary">Ideas Brewing</Text>
         <Text className="mt-1 text-sm text-core-text-secondary">
           Projects researched and planned by your AI co-pilot.
         </Text>
@@ -269,7 +280,7 @@ export default function IncubatorScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
-        {/* Loading state */}
+        {/* Loading state (initial fetch) */}
         {isLoading && (
           <>
             <SkeletonCard />
@@ -277,12 +288,12 @@ export default function IncubatorScreen() {
           </>
         )}
 
-        {/* Project cards */}
+        {/* Pipeline-aware project cards */}
         {!isLoading &&
           visibleProjects &&
           visibleProjects.length > 0 &&
           visibleProjects.map((project) => (
-            <ProjectCard
+            <IncubatorCard
               key={project.id}
               project={project}
               onActivate={handleActivate}
@@ -291,16 +302,10 @@ export default function IncubatorScreen() {
           ))}
 
         {/* Empty state */}
-        {!isLoading &&
-          (!visibleProjects || visibleProjects.length === 0) && <EmptyState />}
+        {!isLoading && (!visibleProjects || visibleProjects.length === 0) && <EmptyState />}
       </ScrollView>
 
-      {/* Toast notification */}
-      <Toast
-        visible={toast.visible}
-        message={toast.message}
-        onDismiss={dismissToast}
-      />
+      <Toast visible={toast.visible} message={toast.message} onDismiss={dismissToast} />
     </Container>
   );
 }

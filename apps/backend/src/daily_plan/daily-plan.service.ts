@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { AiService } from 'src/ai/ai.service';
-import { ProjectStatus, TaskStatus } from '@repo/db';
+import { ProjectStatus, TaskStatus, PipelineStage } from '@repo/db';
 import { DAILY_BRIEFING_SYSTEM_PROMPT } from 'src/common/prompts/daily-plan.prompt';
+import { JOBS, QUEUES } from 'src/common/lib/constants';
+import { PipelineEventsService } from 'src/pipeline_events/pipeline-events.service';
 
 /** Maximum number of backlog tasks to pull into a single daily plan. */
-const MAX_TASKS_PER_DAY = 2;
+const MAX_TASKS_PER_DAY = 4;
 
 @Injectable()
 export class DailyPlanCronService {
@@ -15,6 +19,8 @@ export class DailyPlanCronService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    private readonly pipelineEvents: PipelineEventsService,
+    @InjectQueue(QUEUES.INCUBATOR) private readonly incubatorQueue: Queue,
   ) { }
 
   /**
@@ -48,7 +54,7 @@ export class DailyPlanCronService {
     this.logger.log('✅ Daily plan sweep complete.');
   }
 
-  private async processUserPlan(userId: string): Promise<void> {
+  async processUserPlan(userId: string): Promise<void> {
     const today = this.getTodayDate();
 
     const existingPlan = await this.prisma.dailyPlan.findUnique({
@@ -72,7 +78,7 @@ export class DailyPlanCronService {
       take: MAX_TASKS_PER_DAY,
       orderBy: { createdAt: 'asc' },
       include: {
-        project: { select: { title: true } },
+        project: { select: { id: true, title: true, techStack: true } },
       },
     });
 
@@ -83,6 +89,18 @@ export class DailyPlanCronService {
 
     this.logger.log(
       `Building daily plan for user ${userId} with ${backlogTasks.length} task(s).`,
+    );
+
+    // Emit DAILY_PLAN_STARTED for each unique project in the batch
+    const projectIds = [...new Set(backlogTasks.map((t) => t.project.id))];
+    await Promise.all(
+      projectIds.map((pid) =>
+        this.pipelineEvents.emit(
+          pid,
+          PipelineStage.DAILY_PLAN_STARTED,
+          'Building your daily plan and morning briefing',
+        ),
+      ),
     );
 
     const briefingPrompt = this.buildBriefingPrompt(backlogTasks);
@@ -121,9 +139,65 @@ export class DailyPlanCronService {
           `✔ DailyPlan ${plan.id} created for user ${userId} with ${backlogTasks.length} task(s).`,
         );
       });
+      // Emit DAILY_PLAN_COMPLETED for each unique project
+      await Promise.all(
+        projectIds.map((pid) =>
+          this.pipelineEvents.emit(
+            pid,
+            PipelineStage.DAILY_PLAN_COMPLETED,
+            `Daily plan ready with ${backlogTasks.length} task(s)`,
+          ),
+        ),
+      );
+
+      await this.queueResourceFetching(backlogTasks);
     } catch (err) {
       this.logger.error(`Transaction failed for user ${userId}.`, err);
     }
+  }
+
+  /**
+   * Queues TASK_RESEARCH jobs for tasks that don't already have resources.
+   */
+  private async queueResourceFetching(
+    tasks: Array<{
+      id: string;
+      title: string;
+      project: { id: string; title: string; techStack: string[] };
+    }>,
+  ): Promise<void> {
+    const taskIds = tasks.map((t) => t.id);
+
+    const tasksWithResources = await this.prisma.resource.groupBy({
+      by: ['taskId'],
+      where: { taskId: { in: taskIds } },
+    });
+
+    const taskIdsWithResources = new Set(
+      tasksWithResources.map((r) => r.taskId),
+    );
+
+    const tasksNeedingResources = tasks.filter(
+      (t) => !taskIdsWithResources.has(t.id),
+    );
+
+    if (tasksNeedingResources.length === 0) return;
+
+    await Promise.all(
+      tasksNeedingResources.map((task) =>
+        this.incubatorQueue.add(JOBS.TASK_RESEARCH, {
+          taskId: task.id,
+          projectId: task.project.id,
+          taskTitle: task.title,
+          projectTitle: task.project.title,
+          techStack: task.project.techStack,
+        }),
+      ),
+    );
+
+    this.logger.log(
+      `Queued TASK_RESEARCH for ${tasksNeedingResources.length} task(s) in daily plan.`,
+    );
   }
 
   /**

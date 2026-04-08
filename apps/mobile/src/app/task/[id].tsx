@@ -300,30 +300,6 @@ export default function TaskDetailScreen() {
             </View>
           </View>
 
-          {/* ── Project info ────────────────────────────────────────── */}
-          <View className="mt-8">
-            <Text className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-core-text-disabled">
-              Project
-            </Text>
-            <View className="rounded-2xl bg-core-surface-elevated p-4">
-              <Text className="font-heading text-base text-core-text-primary">
-                {task.project.title}
-              </Text>
-              {task.project.description && (
-                <Text className="mt-1.5 text-sm leading-5 text-core-text-secondary">
-                  {task.project.description}
-                </Text>
-              )}
-              {task.project.techStack.length > 0 && (
-                <View className="mt-3 flex-row flex-wrap gap-2">
-                  {task.project.techStack.map((tech) => (
-                    <TechChip key={tech} label={tech} />
-                  ))}
-                </View>
-              )}
-            </View>
-          </View>
-
           {/* ── Resources ───────────────────────────────────────────── */}
           <View className="mt-8">
             <View className="mb-2.5 flex-row items-center gap-x-2">

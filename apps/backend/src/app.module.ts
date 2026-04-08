@@ -14,6 +14,7 @@ import { AiModule } from './ai/ai.module';
 import { DailyPlanModule } from './daily_plan/daily-plan.module';
 import { ProjectsModule } from './projects/projects.module';
 import { TasksModule } from './tasks/tasks.module';
+import { PipelineEventsModule } from './pipeline_events/pipeline-events.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { TasksModule } from './tasks/tasks.module';
     DailyPlanModule,
     ProjectsModule,
     TasksModule,
+    PipelineEventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
