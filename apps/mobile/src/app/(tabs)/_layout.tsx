@@ -97,6 +97,19 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="projects"
+        options={{
+          title: 'Projects',
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons
+              name={focused ? 'rocket' : 'rocket-outline'}
+              size={size}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',

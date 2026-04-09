@@ -1,12 +1,18 @@
 import { Avatar } from '@/components/ui/Avatar';
 import { Container } from '@/components/ui/Container';
-import { Animated, ScrollView, View, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
+import { CollapsibleHeader } from '@/components/ui/CollapsibleHeader';
+import { useCollapsibleHeader } from '@/hooks/useCollapsibleHeader';
+import { Animated, View, ActivityIndicator, Pressable, RefreshControl, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { TaskCard } from '@/components/ui/TaskCard';
 import { FloatingInput } from '@/components/FloatingInput';
 import { BlurTargetView } from 'expo-blur';
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { useRouter } from 'expo-router';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { useProfile } from '@/hooks/useProfile';
 import { useDailyPlan } from '@/hooks/useDailyPlan';
 import Text from '@/components/ui/Text';
@@ -114,6 +120,7 @@ export default function FocusScreen() {
   const [query, setQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [completedExpanded, setCompletedExpanded] = useState(false);
   const [toast, setToast] = useState<{ visible: boolean; projectTitle: string }>({
     visible: false,
     projectTitle: '',
@@ -123,33 +130,18 @@ export default function FocusScreen() {
   const [isRecording, setIsRecording] = useState(false);
 
   const blurTargetRef = useRef<View | null>(null);
-  const scrollY = useRef(new Animated.Value(0)).current;
-
-  const HEADER_HEIGHT = 80;
-
-  const headerTranslateY = useMemo(
-    () =>
-      scrollY.interpolate({
-        inputRange: [0, HEADER_HEIGHT],
-        outputRange: [0, -HEADER_HEIGHT],
-        extrapolate: 'clamp',
-      }),
-    [scrollY],
-  );
-
-  const headerOpacity = useMemo(
-    () =>
-      scrollY.interpolate({
-        inputRange: [0, HEADER_HEIGHT / 2],
-        outputRange: [1, 0],
-        extrapolate: 'clamp',
-      }),
-    [scrollY],
-  );
+  const { translateY: headerTranslateY, opacity: headerOpacity, onScroll, headerHeight: HEADER_HEIGHT } = useCollapsibleHeader(80);
 
   const router = useRouter();
   const { data: profile } = useProfile();
   const { data: dailyPlan, isLoading: isPlanLoading, mutate } = useDailyPlan();
+
+  // Re-fetch when returning from task detail so status changes are reflected immediately
+  useFocusEffect(
+    useCallback(() => {
+      mutate();
+    }, [mutate]),
+  );
 
   const handleBrainDump = useCallback(async () => {
     if (!query.trim()) return;
@@ -237,20 +229,11 @@ export default function FocusScreen() {
 
   return (
     <Container className="bg-core-background">
-      <Animated.View
-        style={{
-          position: 'absolute',
-          top: 16,
-          left: 0,
-          right: 0,
-          zIndex: 10,
-          transform: [{ translateY: headerTranslateY }],
-          opacity: headerOpacity,
-          paddingHorizontal: 16,
-          paddingTop: 16,
-          paddingBottom: 8,
-        }}
-        pointerEvents="box-none"
+      <CollapsibleHeader
+        translateY={headerTranslateY}
+        opacity={headerOpacity}
+        height={HEADER_HEIGHT}
+        style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}
       >
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center gap-x-3">
@@ -266,16 +249,13 @@ export default function FocusScreen() {
             <Ionicons name="notifications-outline" size={22} color="#1A1714" />
           </View>
         </View>
-      </Animated.View>
+      </CollapsibleHeader>
 
       <BlurTargetView ref={blurTargetRef} style={{ flex: 1 }}>
         <Animated.ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 140, paddingHorizontal: 16, paddingTop: HEADER_HEIGHT }}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: true },
-          )}
+          onScroll={onScroll}
           scrollEventThrottle={16}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#E8612A" />}
         >
@@ -286,6 +266,23 @@ export default function FocusScreen() {
               <Text className="font-text text-sm font-medium text-brand-flax">View all</Text>
             </Pressable>
           </View>
+
+          {/* Progress indicator */}
+          {dailyPlan && dailyPlan.tasks.length > 0 && (
+            <View className="mb-4">
+              <Text className="font-text text-xs text-core-text-secondary">
+                {dailyPlan.tasks.filter(t => t.status === 'completed').length} of {dailyPlan.tasks.length} done
+              </Text>
+              <View className="mt-1.5 h-1 overflow-hidden rounded-full bg-core-surface-elevated">
+                <View
+                  className="h-full rounded-full bg-brand-ember"
+                  style={{
+                    width: `${Math.round((dailyPlan.tasks.filter(t => t.status === 'completed').length / dailyPlan.tasks.length) * 100)}%`,
+                  }}
+                />
+              </View>
+            </View>
+          )}
 
           {/* Morning Briefing */}
           {isPlanLoading && (
@@ -332,16 +329,52 @@ export default function FocusScreen() {
             </View>
           )}
 
-          {/* Task cards from Daily Plan */}
-          {dailyPlan?.tasks.map((task, index) => (
-            <TaskCard
-              key={task.id}
-              title={task.title}
-              status={task.status}
-              variant={CARD_VARIANTS[index % CARD_VARIANTS.length]}
-              onPress={() => router.push(`/task/${task.id}`)}
-            />
-          ))}
+          {/* Active task cards (TODO / IN_PROGRESS) */}
+          {dailyPlan?.tasks
+            .filter(t => t.status !== 'completed')
+            .map((task, index) => (
+              <TaskCard
+                key={task.id}
+                title={task.title}
+                status={task.status}
+                variant={CARD_VARIANTS[index % CARD_VARIANTS.length]}
+                onPress={() => router.push(`/task/${task.id}`)}
+              />
+            ))}
+
+{/* Completed today collapsible section */}
+{dailyPlan && dailyPlan.tasks.some(t => t.status === 'completed') && (
+  <View className="mb-4">
+    <Pressable
+      onPress={() => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setCompletedExpanded(prev => !prev);
+      }}
+      className="flex-row items-center justify-between px-1 py-2"
+    >
+      <View className="flex-row items-center gap-x-2">
+        <View className="h-px flex-1 bg-semantic-border" style={{ width: 12 }} />
+        <Text className="font-text text-xs text-core-text-disabled tracking-wide">
+          {dailyPlan.tasks.filter(t => t.status === 'completed').length} completed
+        </Text>
+        <View className="h-px flex-1 bg-semantic-border" style={{ width: 12 }} />
+      </View>
+    </Pressable>
+
+    {completedExpanded &&
+      dailyPlan.tasks
+        .filter(t => t.status === 'completed')
+        .map((task, index) => (
+          <TaskCard
+            key={task.id}
+            title={task.title}
+            status={task.status}
+            variant={CARD_VARIANTS[index % CARD_VARIANTS.length]}
+            onPress={() => router.push(`/task/${task.id}`)}
+          />
+        ))}
+  </View>
+)}
 
           {/* Empty state */}
           {!dailyPlan && !isPlanLoading && (

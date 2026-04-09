@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectPipelineResponse, UpdateProjectResponse } from '@repo/types';
+import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectDetailResponse, GetProjectPipelineResponse, UpdateProjectResponse } from '@repo/types';
 /**
  * Activate an incubator project — moves it into the user's active focus.
  * POST /projects/:id/activate
@@ -20,6 +20,15 @@ export const getProjects = async (status?: string): Promise<GetProjectsResponse>
   const response = await apiClient.get<GetProjectsResponse>('/projects', {
     params: { status }
   });
+  return response.data;
+};
+
+/**
+ * Get a single project with its tasks.
+ * GET /projects/:id
+ */
+export const getProjectById = async (projectId: string): Promise<GetProjectDetailResponse> => {
+  const response = await apiClient.get<GetProjectDetailResponse>(`/projects/${projectId}`);
   return response.data;
 };
 

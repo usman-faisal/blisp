@@ -37,6 +37,13 @@ export interface ResourceResponse {
   type: Resource['type'];
 }
 
+export interface TaskCountsPayload {
+  todo: number;
+  inProgress: number;
+  done: number;
+  total: number;
+}
+
 export interface ProjectResponse {
   id: Project['id'];
   title: Project['title'];
@@ -45,6 +52,7 @@ export interface ProjectResponse {
   resources: ResourceResponse[];
   status: Project['status'];
   classification: Project['classification'];
+  taskCounts?: TaskCountsPayload;
 }
 
 export type GetProjectsResponse = ApiResponse<ProjectResponse[]>;
@@ -169,3 +177,24 @@ export interface UpdateProjectResponsePayload {
 }
 
 export type UpdateProjectResponse = ApiResponse<UpdateProjectResponsePayload>;
+
+export interface ProjectTaskResponse {
+  id: Task['id'];
+  title: Task['title'];
+  status: Task['status'];
+  plannedFor: string | null;
+  createdAt: string;
+}
+
+export interface ProjectDetailResponsePayload {
+  id: Project['id'];
+  title: Project['title'];
+  description: Project['description'];
+  techStack: Project['techStack'];
+  classification: Project['classification'];
+  status: Project['status'];
+  resources: ResourceResponse[];
+  tasks: ProjectTaskResponse[];
+}
+
+export type GetProjectDetailResponse = ApiResponse<ProjectDetailResponsePayload>;

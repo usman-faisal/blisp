@@ -1,4 +1,6 @@
 import { Container } from '@/components/ui/Container';
+import { CollapsibleHeader } from '@/components/ui/CollapsibleHeader';
+import { useCollapsibleHeader } from '@/hooks/useCollapsibleHeader';
 import Text from '@/components/ui/Text';
 import { useIncubatorProjects, IncubatorProject } from '@/hooks/useIncubatorProjects';
 import { useProjectPipeline } from '@/hooks/useProjectPipeline';
@@ -9,7 +11,6 @@ import { useFocusEffect } from 'expo-router';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
-  ScrollView,
   Pressable,
   ActivityIndicator,
   Animated,
@@ -232,6 +233,7 @@ function EmptyState() {
 export default function IncubatorScreen() {
   const { data: projects, isLoading, mutate, startPolling, stopPolling } = useIncubatorProjects();
   const [activatingId, setActivatingId] = useState<string | null>(null);
+  const { translateY: headerTranslateY, opacity: headerOpacity, onScroll, headerHeight } = useCollapsibleHeader(110);
 
   useFocusEffect(
     useCallback(() => {
@@ -282,9 +284,13 @@ export default function IncubatorScreen() {
   const visibleProjects = projects?.filter((p) => !removedIds.has(p.id));
 
   return (
-    <Container className="bg-core-background px-4">
-      {/* Header */}
-      <View className="mt-4 mb-2">
+    <Container className="bg-core-background">
+      <CollapsibleHeader
+        translateY={headerTranslateY}
+        opacity={headerOpacity}
+        height={headerHeight}
+        style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}
+      >
         <View className="flex-row items-center gap-x-2">
           <Ionicons name="egg" size={20} color="#C9A84C" />
           <Text className="text-xs font-semibold uppercase tracking-widest text-brand-flax">
@@ -295,13 +301,14 @@ export default function IncubatorScreen() {
         <Text className="mt-1 text-sm text-core-text-secondary">
           Projects researched and planned by your AI co-pilot.
         </Text>
-      </View>
+      </CollapsibleHeader>
 
       {/* Content */}
-      <ScrollView
-        className="mt-4"
+      <Animated.ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 16, paddingTop: headerHeight }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#C9A84C" />}
       >
         {/* Loading state (initial fetch) */}
@@ -327,7 +334,7 @@ export default function IncubatorScreen() {
 
         {/* Empty state */}
         {!isLoading && (!visibleProjects || visibleProjects.length === 0) && <EmptyState />}
-      </ScrollView>
+      </Animated.ScrollView>
 
       <Toast visible={toast.visible} message={toast.message} onDismiss={dismissToast} />
     </Container>

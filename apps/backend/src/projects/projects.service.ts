@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/common/services/prisma.service';
-import { ProjectStatus, Prisma } from '@repo/db';
-import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectStatsResponse, UpdateProjectResponse } from '@repo/types';
+import { ProjectStatus, TaskStatus, Prisma } from '@repo/db';
+import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectDetailResponse, GetProjectStatsResponse, UpdateProjectResponse } from '@repo/types';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { DailyPlanCronService } from 'src/daily_plan/daily-plan.service';
 
@@ -133,21 +133,73 @@ export class ProjectsService {
       },
       include: {
         resources: true,
+        tasks: { select: { status: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
     return {
-      data: projects.map(p => ({
-        id: p.id,
-        title: p.title,
-        description: p.description,
-        techStack: p.techStack,
-        status: p.status,
-        classification: p.classification,
-        resources: p.resources,
-      })),
+      data: projects.map(p => {
+        const todo = p.tasks.filter(t => t.status === TaskStatus.TODO).length;
+        const inProgress = p.tasks.filter(t => t.status === TaskStatus.IN_PROGRESS).length;
+        const done = p.tasks.filter(t => t.status === TaskStatus.DONE).length;
+
+        return {
+          id: p.id,
+          title: p.title,
+          description: p.description,
+          techStack: p.techStack,
+          status: p.status,
+          classification: p.classification,
+          resources: p.resources,
+          taskCounts: { todo, inProgress, done, total: todo + inProgress + done },
+        };
+      }),
       message: 'Projects retrieved successfully.',
+      success: true,
+    };
+  }
+
+  async getProjectById(userId: string, projectId: string): Promise<GetProjectDetailResponse> {
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, userId },
+      include: {
+        resources: true,
+        tasks: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            plannedFor: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found or you do not own it.');
+    }
+
+    return {
+      data: {
+        id: project.id,
+        title: project.title,
+        description: project.description,
+        techStack: project.techStack,
+        classification: project.classification,
+        status: project.status,
+        resources: project.resources,
+        tasks: project.tasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+          plannedFor: t.plannedFor ? t.plannedFor.toISOString().split('T')[0] : null,
+          createdAt: t.createdAt.toISOString(),
+        })),
+      },
+      message: 'Project retrieved successfully.',
       success: true,
     };
   }

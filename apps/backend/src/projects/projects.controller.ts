@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags }
 import { User, ProjectStatus } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
-import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectStatsResponse, GetProjectPipelineResponse, UpdateProjectResponse } from '@repo/types';
+import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectDetailResponse, GetProjectStatsResponse, GetProjectPipelineResponse, UpdateProjectResponse } from '@repo/types';
 import { ProjectsService } from './projects.service';
 import { PipelineEventsService } from 'src/pipeline_events/pipeline-events.service';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -107,5 +107,21 @@ export class ProjectsController {
     @Query('status') status?: ProjectStatus,
   ): Promise<GetProjectsResponse> {
     return this.projectsService.getProjects(user.id, status);
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get a single project with tasks',
+    description: 'Retrieves a project by ID including its tasks and resources.',
+  })
+  @ApiParam({ name: 'id', description: 'Project UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Project retrieved successfully.' })
+  @ApiResponse({ status: 404, description: 'Project not found or not owned by the user.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getProjectById(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<GetProjectDetailResponse> {
+    return this.projectsService.getProjectById(user.id, id);
   }
 }
