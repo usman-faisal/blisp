@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { RefObject, useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Animated, Easing, Keyboard, KeyboardEvent, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 interface FloatingInputProps {
   value: string;
@@ -27,6 +27,35 @@ export const FloatingInput = ({
   // ── Pulsing animation for the mic icon while recording ──
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
+  const bottomAnim = useRef(new Animated.Value(36)).current;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e: KeyboardEvent) => {
+      Animated.timing(bottomAnim, {
+        toValue: e.endCoordinates.height + 8,
+        duration: Platform.OS === 'ios' ? e.duration : 250,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: false,
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, (e: KeyboardEvent) => {
+      Animated.timing(bottomAnim, {
+        toValue: 36,
+        duration: Platform.OS === 'ios' ? e.duration : 250,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [bottomAnim]);
 
   useEffect(() => {
     if (isRecording) {
@@ -77,7 +106,7 @@ export const FloatingInput = ({
   });
 
   return (
-    <View style={styles.wrapper}>
+    <Animated.View style={[styles.wrapper, { bottom: bottomAnim }]}>
       <BlurView
         blurTarget={blurTarget}
         intensity={60}
@@ -124,14 +153,13 @@ export const FloatingInput = ({
           </Pressable>
         </View>
       </BlurView>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    bottom: 36,
     left: 16,
     right: 16,
   },

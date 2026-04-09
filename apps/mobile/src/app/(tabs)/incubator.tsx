@@ -124,6 +124,7 @@ function IncubatorCard({
       <PipelineProgress
         events={pipeline!.events}
         projectTitle={project.title}
+        isIncubator={true}
       />
     );
   }

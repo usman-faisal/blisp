@@ -22,7 +22,11 @@ export function useProjectPipeline(
 
   const isComplete = useCallback((events: PipelineEventPayload[]) => {
     const stages = new Set(events.map((e) => e.stage));
-    return stages.has('DAILY_PLAN_COMPLETED') || stages.has('RESOURCE_FETCH_COMPLETED');
+    return (
+      stages.has('DAILY_PLAN_COMPLETED') ||
+      stages.has('RESOURCE_FETCH_COMPLETED') ||
+      stages.has('PLAN_COMPLETED')
+    );
   }, []);
 
   const fetchPipeline = useCallback(async () => {

@@ -188,12 +188,20 @@ function StepRow({
 export function PipelineProgress({
   events,
   projectTitle,
+  isIncubator = false,
 }: {
   events: PipelineEventPayload[];
   projectTitle: string;
+  isIncubator?: boolean;
 }) {
   const stageSet = new Set(events.map((e) => e.stage));
-  const allDone = stageSet.has('RESOURCE_FETCH_COMPLETED') || stageSet.has('DAILY_PLAN_COMPLETED');
+  const allDone = isIncubator
+    ? stageSet.has('PLAN_COMPLETED')
+    : stageSet.has('RESOURCE_FETCH_COMPLETED') || stageSet.has('DAILY_PLAN_COMPLETED');
+
+  const visibleSteps = isIncubator
+    ? PIPELINE_STEPS.filter((s) => s.key === 'research' || s.key === 'plan')
+    : PIPELINE_STEPS;
 
   return (
     <View className="mb-4 overflow-hidden rounded-3xl bg-core-surface-elevated p-5">
@@ -224,13 +232,13 @@ export function PipelineProgress({
       </View>
 
       {/* Steps */}
-      {PIPELINE_STEPS.map((step, index) => (
+      {visibleSteps.map((step, index) => (
         <StepRow
           key={step.key}
           step={step}
           status={getStepStatus(step, stageSet)}
           message={getStepMessage(step, events)}
-          isLast={index === PIPELINE_STEPS.length - 1}
+          isLast={index === visibleSteps.length - 1}
         />
       ))}
     </View>

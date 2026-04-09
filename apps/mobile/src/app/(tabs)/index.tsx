@@ -337,7 +337,7 @@ export default function FocusScreen() {
             <TaskCard
               key={task.id}
               title={task.title}
-              priority="high"
+              status={task.status}
               variant={CARD_VARIANTS[index % CARD_VARIANTS.length]}
               onPress={() => router.push(`/task/${task.id}`)}
             />
