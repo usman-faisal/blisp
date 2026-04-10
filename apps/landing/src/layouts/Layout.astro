@@ -1,0 +1,59 @@
+---
+import "../styles/global.css"
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="generator" content={Astro.generator} />
+
+		<!-- SEO -->
+		<title>blisp — Think out loud. Get things done.</title>
+		<meta name="description" content="Voice-dump your project ideas and let AI turn them into researched plans, daily tasks, and a roadmap. Built for developers who think faster than they type." />
+		<meta name="theme-color" content="#F7F4EF" />
+
+		<!-- Open Graph -->
+		<meta property="og:title" content="blisp — Think out loud. Get things done." />
+		<meta property="og:description" content="Voice-dump your project ideas and let AI turn them into researched plans, daily tasks, and a roadmap." />
+		<meta property="og:type" content="website" />
+
+		<!-- Fonts -->
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+	</head>
+	<body class="bg-core-background text-core-text-primary font-text antialiased">
+		<slot />
+
+		<!-- Scroll-reveal observer -->
+		<script>
+			const observer = new IntersectionObserver(
+				(entries) => {
+					entries.forEach((entry) => {
+						if (entry.isIntersecting) {
+							entry.target.classList.add('visible');
+						}
+					});
+				},
+				{ threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+			);
+
+			document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale').forEach((el) => {
+				observer.observe(el);
+			});
+		</script>
+	</body>
+</html>
+
+<style>
+	html,
+	body {
+		margin: 0;
+		width: 100%;
+		height: 100%;
+	}
+</style>

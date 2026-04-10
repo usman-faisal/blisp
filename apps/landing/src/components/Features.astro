@@ -1,0 +1,168 @@
+---
+/* Feature Deep Dives */
+---
+
+<section id="features" class="py-24 md:py-32 bg-core-background relative">
+    <div class="max-w-6xl mx-auto px-6">
+        <div class="max-w-3xl mb-20 reveal">
+            <p class="text-xs font-semibold uppercase tracking-widest text-brand-ember mb-4">
+                Features
+            </p>
+            <h2 class="font-heading text-4xl md:text-5xl text-core-text-primary leading-[1.15]">
+                Not another todo app.<br />
+                <span class="text-core-text-disabled">An autonomous project engine.</span>
+            </h2>
+            <p class="mt-5 text-lg text-core-text-secondary leading-relaxed max-w-2xl">
+                Every feature is designed to remove the friction between having an idea and making progress on it.
+            </p>
+        </div>
+
+        <!-- Row 1: Voice Capture (wide) + Resource Fetching (narrow) -->
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+            <!-- Feature 1: Voice Capture -->
+            <div class="reveal lg:col-span-3 group rounded-3xl bg-core-surface border border-semantic-border/30 hover:border-brand-ember/20 hover:shadow-card p-10 md:p-12 flex flex-col md:flex-row gap-8 items-start transition-all duration-500">
+                <div class="flex-1">
+                    <div class="w-12 h-12 rounded-2xl bg-brand-ember-mist flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-brand-ember" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                    </div>
+                    <h3 class="font-heading text-2xl text-core-text-primary mb-3">Frictionless Voice Capture</h3>
+                    <p class="text-core-text-secondary leading-relaxed mb-6">
+                        One tap. Start talking. Blisp transcribes, understands context, and extracts actionable projects — all without breaking your flow. No templates, no forms, no friction.
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1.5 rounded-full bg-brand-ember-mist text-brand-ember text-xs font-medium">Speech-to-text</span>
+                        <span class="px-3 py-1.5 rounded-full bg-brand-ember-mist text-brand-ember text-xs font-medium">Context-aware AI</span>
+                        <span class="px-3 py-1.5 rounded-full bg-brand-ember-mist text-brand-ember text-xs font-medium">Auto-extraction</span>
+                    </div>
+                </div>
+                <!-- App screenshot placeholder -->
+                <div class="relative w-44 flex-shrink-0 hidden md:block">
+                    <div class="rounded-2xl bg-core-background border border-semantic-border/40 aspect-[9/16] flex items-center justify-center">
+                        <span class="text-core-text-disabled text-sm">Screenshot</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature 2: Resource Fetching -->
+            <div class="reveal delay-1 lg:col-span-2 group rounded-3xl bg-core-surface border border-semantic-border/30 hover:border-brand-sage/20 hover:shadow-card p-10 md:p-12 transition-all duration-500">
+                <div class="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-brand-sage" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                </div>
+                <h3 class="font-heading text-2xl text-core-text-primary mb-3">Agentic Resource Fetching</h3>
+                <p class="text-core-text-secondary leading-relaxed mb-6">
+                    Not just a to-do list. Blisp attaches the exact docs, repos, and tutorials you need for each task.
+                </p>
+                <div class="space-y-3">
+                    <div class="flex items-center gap-3 text-sm text-core-text-secondary">
+                        <div class="w-2 h-2 rounded-full bg-brand-sage flex-shrink-0"></div>
+                        Docs matched to your stack
+                    </div>
+                    <div class="flex items-center gap-3 text-sm text-core-text-secondary">
+                        <div class="w-2 h-2 rounded-full bg-brand-sage flex-shrink-0"></div>
+                        GitHub repos & references
+                    </div>
+                    <div class="flex items-center gap-3 text-sm text-core-text-secondary">
+                        <div class="w-2 h-2 rounded-full bg-brand-sage flex-shrink-0"></div>
+                        Architectural best practices
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2: Project Roadmap (NEW — full width) -->
+        <div class="reveal mb-6">
+            <div class="group rounded-3xl bg-gradient-to-br from-core-surface via-core-surface to-brand-ember-mist/20 border border-semantic-border/30 hover:border-brand-ember/20 hover:shadow-card p-10 md:p-12 transition-all duration-500 overflow-hidden relative">
+                <div class="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-brand-ember/5 to-transparent rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
+                <div class="relative flex flex-col lg:flex-row gap-10 items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-6">
+                            <div class="w-12 h-12 rounded-2xl bg-brand-ember-mist flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-brand-ember" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                            </div>
+                            <span class="px-3 py-1 rounded-full bg-brand-ember text-white text-xs font-bold uppercase tracking-wider">New</span>
+                        </div>
+                        <h3 class="font-heading text-3xl text-core-text-primary mb-4">Project Roadmap</h3>
+                        <p class="text-core-text-secondary leading-relaxed text-lg mb-8 max-w-xl">
+                            See every project at a glance — classification, tech stack, task progress, and what's next. Blisp automatically organizes your brain dumps into categorized projects with visual progress tracking and a clear roadmap from idea to completion.
+                        </p>
+                        <div class="grid grid-cols-2 gap-4 max-w-md">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-brand-ember-mist flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-4 h-4 text-brand-ember" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                                </div>
+                                <span class="text-sm text-core-text-secondary">Auto-classification</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-4 h-4 text-brand-sage" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                </div>
+                                <span class="text-sm text-core-text-secondary">Progress tracking</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-yellow-50 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-4 h-4 text-brand-flax" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+                                </div>
+                                <span class="text-sm text-core-text-secondary">Tech stack tags</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-4 h-4 text-semantic-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M14 2v6h6"/></svg>
+                                </div>
+                                <span class="text-sm text-core-text-secondary">Task breakdown</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- App screenshot placeholder -->
+                    <div class="relative w-56 flex-shrink-0 hidden lg:block">
+                        <div class="rounded-2xl bg-core-background border border-semantic-border/40 aspect-[9/16] flex items-center justify-center shadow-card">
+                            <span class="text-core-text-disabled text-sm">Screenshot</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 3: Dynamic Rollover (narrow) + Daily Plans (wide) -->
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <!-- Feature 3: Dynamic Rollover -->
+            <div class="reveal lg:col-span-2 group rounded-3xl bg-core-surface border border-semantic-border/30 hover:border-brand-flax/20 hover:shadow-card p-10 md:p-12 transition-all duration-500">
+                <div class="w-12 h-12 rounded-2xl bg-yellow-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-brand-flax" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
+                </div>
+                <h3 class="font-heading text-2xl text-core-text-primary mb-3">Dynamic Rollover</h3>
+                <p class="text-core-text-secondary leading-relaxed mb-6">
+                    Didn't finish today? Blisp automatically rebalances tomorrow. No guilt trips, no stale backlogs — just realistic planning that adapts to your life.
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="px-3 py-1.5 rounded-full bg-yellow-50 text-brand-flax text-xs font-medium">Auto-rebalance</span>
+                    <span class="px-3 py-1.5 rounded-full bg-yellow-50 text-brand-flax text-xs font-medium">No guilt</span>
+                    <span class="px-3 py-1.5 rounded-full bg-yellow-50 text-brand-flax text-xs font-medium">Capacity-aware</span>
+                </div>
+            </div>
+
+            <!-- Feature 4: Daily Plans -->
+            <div class="reveal delay-1 lg:col-span-3 group rounded-3xl bg-core-surface border border-semantic-border/30 hover:border-semantic-info/20 hover:shadow-card p-10 md:p-12 flex flex-col md:flex-row gap-8 items-start transition-all duration-500">
+                <div class="flex-1">
+                    <div class="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-semantic-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>
+                    </div>
+                    <h3 class="font-heading text-2xl text-core-text-primary mb-3">AI-Generated Daily Plans</h3>
+                    <p class="text-core-text-secondary leading-relaxed mb-6">
+                        Every morning, Blisp assembles a focused plan from your active projects — 2-3 tasks, scoped to what you can actually finish. Like a personal engineering manager that respects your time.
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1.5 rounded-full bg-blue-50 text-semantic-info text-xs font-medium">Morning briefing</span>
+                        <span class="px-3 py-1.5 rounded-full bg-blue-50 text-semantic-info text-xs font-medium">Smart scheduling</span>
+                        <span class="px-3 py-1.5 rounded-full bg-blue-50 text-semantic-info text-xs font-medium">Multi-project</span>
+                    </div>
+                </div>
+                <!-- App screenshot placeholder -->
+                <div class="relative w-44 flex-shrink-0 hidden md:block">
+                    <div class="rounded-2xl bg-core-background border border-semantic-border/40 aspect-[9/16] flex items-center justify-center">
+                        <span class="text-core-text-disabled text-sm">Screenshot</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
