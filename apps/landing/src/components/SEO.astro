@@ -1,0 +1,35 @@
+---
+interface Props {
+  title?: string
+  description?: string
+  image?: string
+  url?: string
+}
+
+const {
+  title = "Blisp — Wake up knowing exactly what to build",
+  description = "Voice dump your ideas and wake up to a researched, ready-to-execute daily plan. Never ask 'what do I work on today?' again.",
+  image = "/og-image.png",
+  url = Astro.url.href,
+} = Astro.props
+---
+
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={url} />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:url" content={url} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={new URL(image, Astro.url)} />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={new URL(image, Astro.url)} />
+
+<!-- Indexing -->
+<meta name="robots" content="index, follow" />

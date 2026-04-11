@@ -1,11 +1,15 @@
 ---
 import { Image } from 'astro:assets';
 import homeScreenshot from '../assets/home.jpeg';
+import Logo from "../assets/logo.png"
 ---
 
 <header class="sticky top-0 z-50 w-full backdrop-blur-md bg-core-background/80 border-b border-semantic-border/30">
     <nav class="w-full max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-        <a href="/" class="font-heading text-2xl font-bold tracking-tight text-core-text-primary">blisp</a>
+        <a href="/" class="font-heading text-2xl font-bold tracking-tight text-core-text-primary flex items-center">
+            <Image class="w-16" src={Logo} alt="Blisp logo" />
+            <span>blisp</span>
+        </a>
 
         <div class="hidden md:flex items-center gap-8">
             <a href="#how-it-works" class="text-sm font-medium text-core-text-secondary hover:text-core-text-primary transition-colors">How it works</a>
@@ -41,22 +45,12 @@ import homeScreenshot from '../assets/home.jpeg';
             </div>
 
             <h1 class="hero-animate-2 font-heading text-5xl md:text-6xl lg:text-[4.5rem] leading-[1.08] tracking-tight text-core-text-primary">
-                Dump a voice note.<br />
-                <span class="gradient-text">Wake up to a plan.</span>
+                Wake up knowing<br />
+                <span class="gradient-text">exactly what to build.</span>
             </h1>
 
             <p class="hero-animate-3 mt-4 text-lg md:text-xl text-core-text-secondary max-w-xl leading-loose text-balance">
-                Dump your thoughts by
-                <span class="inline-flex items-center gap-1.5 px-3 py-1 -my-1 rounded-full bg-brand-ember-mist text-brand-ember text-sm font-medium border border-brand-ember/10">
-                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/></svg>
-                    voice
-                </span>
-                and let blisp turn them into
-                <span class="inline-flex items-center px-3 py-1 -my-1 rounded-full bg-green-50 text-brand-sage text-sm font-medium border border-brand-sage/10">research</span>,
-                <span class="inline-flex items-center px-3 py-1 -my-1 rounded-full bg-yellow-50 text-brand-flax text-sm font-medium border border-brand-flax/10">plans</span>
-                and
-                <span class="inline-flex items-center px-3 py-1 -my-1 rounded-full bg-blue-50 text-semantic-info text-sm font-medium border border-semantic-info/10">daily tasks</span>
-                — automatically.
+                Never ask "what do I work on today?" again. Voice dump your ideas and wake up to a researched, ready-to-execute plan — automatically.
             </p>
 
             <!-- Waitlist form -->

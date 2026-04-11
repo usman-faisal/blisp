@@ -12,6 +12,7 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/sitemap": "^3.7.2",
     "@astrojs/tailwind": "^6.0.2",
     "@blisp/tailwind-config": "workspace:*",
     "@iconify-json/simple-icons": "^1.2.77",
