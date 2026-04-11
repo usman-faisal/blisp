@@ -8,7 +8,6 @@
     "scheme": "blisp",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.blisp.app"
     },
     "android": {
@@ -40,7 +39,8 @@
       ],
       "expo-font",
       "@clerk/expo",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,

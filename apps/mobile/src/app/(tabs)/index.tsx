@@ -18,7 +18,12 @@ import { useDailyPlan } from '@/hooks/useDailyPlan';
 import Text from '@/components/ui/Text';
 import { createBrainDump } from '@/lib/api/brain-dumps';
 import { uploadAudioBrainDump } from '@/lib/api/daily-plan';
-import { Audio } from 'expo-av';
+import {
+  useAudioRecorder,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+} from 'expo-audio';
 import type { BrainDumpResponse } from '@repo/types';
 
 const CARD_VARIANTS = ['dark', 'sage', 'ember', 'flax'] as const;
@@ -126,8 +131,9 @@ export default function FocusScreen() {
     projectTitle: '',
   });
 
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   const blurTargetRef = useRef<View | null>(null);
   const { translateY: headerTranslateY, opacity: headerOpacity, onScroll, headerHeight: HEADER_HEIGHT } = useCollapsibleHeader(80);
@@ -170,41 +176,37 @@ export default function FocusScreen() {
 
   const startRecording = useCallback(async () => {
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) {
         console.warn('[Recording] Microphone permission denied');
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true,
       });
 
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
-      );
-
-      setRecording(newRecording);
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setIsRecording(true);
     } catch (err) {
       console.error('[Recording] Failed to start:', err);
     }
-  }, []);
+  }, [recorder]);
 
   const stopRecording = useCallback(async () => {
-    if (!recording) return;
+    if (!isRecording) return;
 
     try {
       setIsRecording(false);
-      await recording.stopAndUnloadAsync();
+      await recorder.stop();
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
+      await setAudioModeAsync({
+        allowsRecording: false,
       });
 
-      const uri = recording.getURI();
-      setRecording(null);
+      const uri = recorder.uri;
 
       if (uri) {
         await uploadAudioBrainDump(uri);
@@ -212,9 +214,8 @@ export default function FocusScreen() {
       }
     } catch (err) {
       console.error('[Recording] Failed to stop:', err);
-      setRecording(null);
     }
-  }, [recording, mutate]);
+  }, [isRecording, recorder, mutate]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -342,39 +343,39 @@ export default function FocusScreen() {
               />
             ))}
 
-{/* Completed today collapsible section */}
-{dailyPlan && dailyPlan.tasks.some(t => t.status === 'completed') && (
-  <View className="mb-4">
-    <Pressable
-      onPress={() => {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setCompletedExpanded(prev => !prev);
-      }}
-      className="flex-row items-center justify-between px-1 py-2"
-    >
-      <View className="flex-row items-center gap-x-2">
-        <View className="h-px flex-1 bg-semantic-border" style={{ width: 12 }} />
-        <Text className="font-text text-xs text-core-text-disabled tracking-wide">
-          {dailyPlan.tasks.filter(t => t.status === 'completed').length} completed
-        </Text>
-        <View className="h-px flex-1 bg-semantic-border" style={{ width: 12 }} />
-      </View>
-    </Pressable>
+          {/* Completed today collapsible section */}
+          {dailyPlan && dailyPlan.tasks.some(t => t.status === 'completed') && (
+            <View className="mb-4">
+              <Pressable
+                onPress={() => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setCompletedExpanded(prev => !prev);
+                }}
+                className="flex-row items-center justify-between px-1 py-2"
+              >
+                <View className="flex-row items-center gap-x-2">
+                  <View className="h-px flex-1 bg-semantic-border" style={{ width: 12 }} />
+                  <Text className="font-text text-xs text-core-text-disabled tracking-wide">
+                    {dailyPlan.tasks.filter(t => t.status === 'completed').length} completed
+                  </Text>
+                  <View className="h-px flex-1 bg-semantic-border" style={{ width: 12 }} />
+                </View>
+              </Pressable>
 
-    {completedExpanded &&
-      dailyPlan.tasks
-        .filter(t => t.status === 'completed')
-        .map((task, index) => (
-          <TaskCard
-            key={task.id}
-            title={task.title}
-            status={task.status}
-            variant={CARD_VARIANTS[index % CARD_VARIANTS.length]}
-            onPress={() => router.push(`/task/${task.id}`)}
-          />
-        ))}
-  </View>
-)}
+              {completedExpanded &&
+                dailyPlan.tasks
+                  .filter(t => t.status === 'completed')
+                  .map((task, index) => (
+                    <TaskCard
+                      key={task.id}
+                      title={task.title}
+                      status={task.status}
+                      variant={CARD_VARIANTS[index % CARD_VARIANTS.length]}
+                      onPress={() => router.push(`/task/${task.id}`)}
+                    />
+                  ))}
+            </View>
+          )}
 
           {/* Empty state */}
           {!dailyPlan && !isPlanLoading && (

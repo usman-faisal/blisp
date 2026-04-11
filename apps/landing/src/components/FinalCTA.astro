@@ -75,14 +75,46 @@
 </footer>
 
 <script>
-    document.getElementById('waitlist-final-form')?.addEventListener('submit', (e) => {
+    document.getElementById('waitlist-final-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const btn = document.getElementById('waitlist-final-form')?.querySelector('button');
-        if (btn) {
-            btn.setAttribute('disabled', 'true');
-            btn.textContent = 'Added!';
-            btn.classList.add('opacity-70');
+        const form = e.currentTarget as HTMLFormElement;
+        const btn = form.querySelector('button') as HTMLButtonElement;
+        const success = document.getElementById('waitlist-final-success');
+        const email = (form.querySelector('input[name="email"]') as HTMLInputElement)?.value;
+
+        btn.disabled = true;
+        btn.textContent = 'Joining...';
+        btn.classList.add('opacity-70');
+
+        try {
+            const res = await fetch('/api/waitlist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+
+            if (res.ok) {
+                btn.textContent = 'You\'re in!';
+                success?.classList.remove('hidden');
+            } else if (res.status === 409) {
+                btn.textContent = 'Already joined!';
+                if (success) {
+                    success.textContent = 'You\'re already on the list — we\'ll be in touch!';
+                    success.classList.remove('hidden');
+                }
+            } else if (res.status === 429) {
+                btn.textContent = 'Too many attempts';
+                btn.disabled = false;
+                btn.classList.remove('opacity-70');
+            } else {
+                btn.textContent = 'Something went wrong';
+                btn.disabled = false;
+                btn.classList.remove('opacity-70');
+            }
+        } catch {
+            btn.textContent = 'Something went wrong';
+            btn.disabled = false;
+            btn.classList.remove('opacity-70');
         }
-        document.getElementById('waitlist-final-success')?.classList.remove('hidden');
     });
 </script>
