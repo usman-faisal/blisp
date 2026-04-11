@@ -2,29 +2,34 @@
 /* Pricing Section */
 ---
 
-<section id="pricing" class="py-24 md:py-32 bg-core-surface relative">
+<section id="pricing" class="py-24 md:py-32 bg-core-surface relative overflow-hidden">
+    <div class="absolute top-0 right-0 w-96 h-96 bg-brand-ember/3 rounded-full blur-[150px] pointer-events-none" aria-hidden="true"></div>
+
     <div class="max-w-5xl mx-auto px-6">
-        <div class="text-center max-w-3xl mx-auto mb-16">
+        <div class="text-center max-w-3xl mx-auto mb-16 reveal">
             <p class="text-xs font-semibold uppercase tracking-widest text-brand-ember mb-4">
                 Pricing
             </p>
             <h2 class="font-heading text-4xl md:text-5xl text-core-text-primary leading-[1.15]">
                 Start free. <span class="text-core-text-disabled">Scale when ready.</span>
             </h2>
+            <p class="mt-5 text-lg text-core-text-secondary leading-relaxed">
+                No surprises. No hidden fees. Just simple pricing that grows with you.
+            </p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             <!-- Free Tier -->
-            <div class="rounded-3xl bg-core-background border border-semantic-border/30 p-10">
+            <div class="reveal delay-1 group rounded-3xl bg-core-background border border-semantic-border/30 p-10 hover:shadow-card transition-all duration-500">
                 <div class="mb-8">
                     <h3 class="font-heading text-2xl text-core-text-primary mb-1">Free</h3>
-                    <p class="text-core-text-secondary text-sm">For getting started</p>
+                    <p class="text-core-text-secondary text-sm">Perfect for getting started</p>
                 </div>
                 <div class="flex items-baseline gap-1 mb-8">
                     <span class="font-heading text-5xl text-core-text-primary">$0</span>
                     <span class="text-core-text-disabled text-sm">/month</span>
                 </div>
-                <a href="#" class="block w-full text-center py-3.5 rounded-full border-2 border-semantic-border text-core-text-primary font-semibold hover:bg-core-surface transition-colors">
+                <a href="#waitlist-final" class="block w-full text-center py-3.5 rounded-full border-2 border-semantic-border text-core-text-primary font-semibold hover:bg-core-surface hover:border-core-text-disabled/30 transition-all duration-300">
                     Get started
                 </a>
                 <div class="mt-8 pt-8 border-t border-semantic-border/30 space-y-4">
@@ -52,29 +57,33 @@
             </div>
 
             <!-- Pro Tier -->
-            <div class="relative rounded-3xl border-2 border-brand-ember p-10 bg-core-background">
-                <div class="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-brand-ember text-white text-xs font-bold uppercase tracking-wider">
+            <div class="reveal delay-2 relative group rounded-3xl border-2 border-brand-ember p-10 bg-core-background hover:shadow-card glow-ember transition-all duration-500">
+                <div class="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-brand-ember text-white text-xs font-bold uppercase tracking-wider shadow-md shadow-brand-ember/20">
                     Most Popular
                 </div>
                 <div class="mb-8">
                     <h3 class="font-heading text-2xl text-core-text-primary mb-1">Pro</h3>
                     <p class="text-core-text-secondary text-sm">For serious builders</p>
                 </div>
-                <div class="flex items-baseline gap-1 mb-8">
+                <div class="flex items-baseline gap-1 mb-2">
+                    <span class="text-core-text-disabled text-sm">From</span>
                     <span class="font-heading text-5xl text-core-text-primary">$9</span>
                     <span class="text-core-text-disabled text-sm">/month</span>
                 </div>
-                <a href="#" class="block w-full text-center py-3.5 rounded-full bg-brand-ember text-white font-semibold hover:opacity-90 hover:shadow-lg hover:shadow-brand-ember/20 transition-all">
+                <p class="text-xs text-core-text-disabled mb-8">
+                    Pricing may change before launch — early waitlist members lock in founder pricing.
+                </p>
+                <a href="#waitlist-final" class="block w-full text-center py-3.5 rounded-full bg-brand-ember text-white font-semibold hover:opacity-90 hover:shadow-lg hover:shadow-brand-ember/20 transition-all duration-300 active:scale-[0.97]">
                     Start free trial
                 </a>
                 <div class="mt-8 pt-8 border-t border-semantic-border/30 space-y-4">
                     <div class="flex items-start gap-3">
                         <svg class="w-5 h-5 text-brand-ember flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                        <span class="text-core-text-secondary text-sm">Unlimited brain dumps</span>
+                        <span class="text-core-text-secondary text-sm"><strong class="text-core-text-primary">Unlimited</strong> brain dumps</span>
                     </div>
                     <div class="flex items-start gap-3">
                         <svg class="w-5 h-5 text-brand-ember flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                        <span class="text-core-text-secondary text-sm">Unlimited active projects</span>
+                        <span class="text-core-text-secondary text-sm"><strong class="text-core-text-primary">Unlimited</strong> active projects</span>
                     </div>
                     <div class="flex items-start gap-3">
                         <svg class="w-5 h-5 text-brand-ember flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>

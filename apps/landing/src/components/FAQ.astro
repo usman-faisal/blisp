@@ -2,9 +2,9 @@
 /* FAQ Section */
 ---
 
-<section class="py-24 md:py-32 bg-core-background relative">
+<section id="faq" class="py-24 md:py-32 bg-core-background relative">
     <div class="max-w-3xl mx-auto px-6">
-        <div class="text-center mb-16">
+        <div class="text-center mb-16 reveal">
             <p class="text-xs font-semibold uppercase tracking-widest text-brand-ember mb-4">
                 FAQ
             </p>
@@ -13,64 +13,74 @@
             </h2>
         </div>
 
-        <div class="space-y-4">
-            <details class="group rounded-2xl bg-core-surface border border-semantic-border/30 overflow-hidden">
+        <div class="space-y-3 reveal">
+            <details class="group rounded-2xl bg-core-surface border border-semantic-border/30 hover:border-brand-ember/20 transition-colors duration-300">
                 <summary class="flex items-center justify-between p-6 cursor-pointer list-none select-none">
-                    <span class="font-medium text-core-text-primary text-lg">What AI models does Blisp use?</span>
-                    <svg class="w-5 h-5 text-core-text-disabled flex-shrink-0 group-open:rotate-45 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span class="font-medium text-core-text-primary text-lg pr-4">Do you train on my private project ideas?</span>
+                    <svg class="w-5 h-5 text-core-text-disabled flex-shrink-0 group-open:rotate-45 transition-transform duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </summary>
-                <div class="px-6 pb-6 text-core-text-secondary leading-relaxed">
-                    Blisp leverages Gemini and GitHub Models for different pipeline stages — transcription, research synthesis, task generation, and daily planning. We pick the best model for each job so you get fast, accurate results without the cost bloat.
+                <div class="faq-content">
+                    <div>
+                        <div class="px-6 pb-6 text-core-text-secondary leading-relaxed">
+                            Absolutely not. Your brain dumps, projects, and tasks are your intellectual property. We never use your data for model training. Your ideas stay yours — period.
+                        </div>
+                    </div>
                 </div>
             </details>
 
-            <details class="group rounded-2xl bg-core-surface border border-semantic-border/30 overflow-hidden">
+            <details class="group rounded-2xl bg-core-surface border border-semantic-border/30 hover:border-brand-ember/20 transition-colors duration-300">
                 <summary class="flex items-center justify-between p-6 cursor-pointer list-none select-none">
-                    <span class="font-medium text-core-text-primary text-lg">Do you train on my private project ideas?</span>
-                    <svg class="w-5 h-5 text-core-text-disabled flex-shrink-0 group-open:rotate-45 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span class="font-medium text-core-text-primary text-lg pr-4">Can I export my data?</span>
+                    <svg class="w-5 h-5 text-core-text-disabled flex-shrink-0 group-open:rotate-45 transition-transform duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </summary>
-                <div class="px-6 pb-6 text-core-text-secondary leading-relaxed">
-                    Absolutely not. Your brain dumps, projects, and tasks are your intellectual property. We never use your data for model training. Your ideas stay yours — period.
+                <div class="faq-content">
+                    <div>
+                        <div class="px-6 pb-6 text-core-text-secondary leading-relaxed">
+                            Yes. Export your projects, tasks, and research as JSON or Markdown at any time. No lock-in, no dark patterns. If you ever want to leave, your data comes with you.
+                        </div>
+                    </div>
                 </div>
             </details>
 
-            <details class="group rounded-2xl bg-core-surface border border-semantic-border/30 overflow-hidden">
+            <details class="group rounded-2xl bg-core-surface border border-semantic-border/30 hover:border-brand-ember/20 transition-colors duration-300">
                 <summary class="flex items-center justify-between p-6 cursor-pointer list-none select-none">
-                    <span class="font-medium text-core-text-primary text-lg">Can I export my data?</span>
-                    <svg class="w-5 h-5 text-core-text-disabled flex-shrink-0 group-open:rotate-45 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span class="font-medium text-core-text-primary text-lg pr-4">How does the "research" step actually work?</span>
+                    <svg class="w-5 h-5 text-core-text-disabled flex-shrink-0 group-open:rotate-45 transition-transform duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </summary>
-                <div class="px-6 pb-6 text-core-text-secondary leading-relaxed">
-                    Yes. Export your projects, tasks, and research as JSON or Markdown at any time. No lock-in, no dark patterns. If you ever want to leave, your data comes with you.
+                <div class="faq-content">
+                    <div>
+                        <div class="px-6 pb-6 text-core-text-secondary leading-relaxed">
+                            After your brain dump is processed, Blisp's AI agent searches the web for documentation, tutorials, GitHub repos, and architectural patterns relevant to your project's tech stack. These resources are attached to specific tasks so you have exactly what you need when you start coding.
+                        </div>
+                    </div>
                 </div>
             </details>
 
-            <details class="group rounded-2xl bg-core-surface border border-semantic-border/30 overflow-hidden">
+            <details class="group rounded-2xl bg-core-surface border border-semantic-border/30 hover:border-brand-ember/20 transition-colors duration-300">
                 <summary class="flex items-center justify-between p-6 cursor-pointer list-none select-none">
-                    <span class="font-medium text-core-text-primary text-lg">How does the "research" step actually work?</span>
-                    <svg class="w-5 h-5 text-core-text-disabled flex-shrink-0 group-open:rotate-45 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span class="font-medium text-core-text-primary text-lg pr-4">What happens if I don't finish my daily tasks?</span>
+                    <svg class="w-5 h-5 text-core-text-disabled flex-shrink-0 group-open:rotate-45 transition-transform duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </summary>
-                <div class="px-6 pb-6 text-core-text-secondary leading-relaxed">
-                    After your brain dump is processed, Blisp's AI agent searches the web using Tavily for documentation, tutorials, GitHub repos, and architectural patterns relevant to your project's tech stack. These resources are attached to specific tasks so you have exactly what you need when you start coding.
+                <div class="faq-content">
+                    <div>
+                        <div class="px-6 pb-6 text-core-text-secondary leading-relaxed">
+                            No guilt trips here. Unfinished tasks automatically roll over and get re-prioritized in tomorrow's plan. Blisp adapts to your real pace, not an idealized version of it.
+                        </div>
+                    </div>
                 </div>
             </details>
 
-            <details class="group rounded-2xl bg-core-surface border border-semantic-border/30 overflow-hidden">
+            <details class="group rounded-2xl bg-core-surface border border-semantic-border/30 hover:border-brand-ember/20 transition-colors duration-300">
                 <summary class="flex items-center justify-between p-6 cursor-pointer list-none select-none">
-                    <span class="font-medium text-core-text-primary text-lg">What happens if I don't finish my daily tasks?</span>
-                    <svg class="w-5 h-5 text-core-text-disabled flex-shrink-0 group-open:rotate-45 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span class="font-medium text-core-text-primary text-lg pr-4">Is Blisp only for software engineers?</span>
+                    <svg class="w-5 h-5 text-core-text-disabled flex-shrink-0 group-open:rotate-45 transition-transform duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </summary>
-                <div class="px-6 pb-6 text-core-text-secondary leading-relaxed">
-                    No guilt trips here. Unfinished tasks automatically roll over and get re-prioritized in tomorrow's plan. Blisp adapts to your real pace, not an idealized version of it.
-                </div>
-            </details>
-
-            <details class="group rounded-2xl bg-core-surface border border-semantic-border/30 overflow-hidden">
-                <summary class="flex items-center justify-between p-6 cursor-pointer list-none select-none">
-                    <span class="font-medium text-core-text-primary text-lg">Is Blisp only for software engineers?</span>
-                    <svg class="w-5 h-5 text-core-text-disabled flex-shrink-0 group-open:rotate-45 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                </summary>
-                <div class="px-6 pb-6 text-core-text-secondary leading-relaxed">
-                    Blisp is designed with developers in mind — the research pipeline, tech stack awareness, and task structuring are all optimized for engineering workflows. That said, anyone who thinks in projects and needs help turning ideas into action will find it useful.
+                <div class="faq-content">
+                    <div>
+                        <div class="px-6 pb-6 text-core-text-secondary leading-relaxed">
+                            Blisp is designed with developers in mind — the research pipeline, tech stack awareness, and task structuring are all optimized for engineering workflows. That said, anyone who thinks in projects and needs help turning ideas into action will find it useful.
+                        </div>
+                    </div>
                 </div>
             </details>
         </div>

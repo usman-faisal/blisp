@@ -1,190 +1,47 @@
 ---
-/* Built for Your Stack — Tech Credibility */
+import { Icon } from 'astro-icon/components';
+
+const techStack = [
+  { name: "React", icon: "simple-icons:react", color: "text-[#61DAFB]" },
+  { name: "Node.js", icon: "simple-icons:nodedotjs", color: "text-[#339933]" },
+  { name: "Python", icon: "simple-icons:python", color: "text-[#3776AB]" },
+  { name: "TypeScript", icon: "simple-icons:typescript", color: "text-[#3178C6]" },
+  { name: "PostgreSQL", icon: "simple-icons:postgresql", color: "text-[#4169E1]" },
+  { name: "Docker", icon: "simple-icons:docker", color: "text-[#2496ED]" },
+  { name: "AWS", icon: "simple-icons:amazonaws", color: "text-[#FF9900]" },
+  { name: "NestJS", icon: "simple-icons:nestjs", color: "text-[#E0234E]" },
+  { name: "Prisma", icon: "simple-icons:prisma", color: "text-[#2D3748]" },
+];
+
+const reverseStack = [
+  { name: "Next.js", icon: "simple-icons:nextdotjs", color: "text-core-text-primary" },
+  { name: "Go", icon: "simple-icons:go", color: "text-[#00ADD8]" },
+  { name: "Rust", icon: "simple-icons:rust", color: "text-[#DEA584]" },
+  { name: "Swift", icon: "simple-icons:swift", color: "text-[#F05138]" },
+  { name: "Redis", icon: "simple-icons:redis", color: "text-[#DC382D]" },
+  { name: "Kubernetes", icon: "simple-icons:kubernetes", color: "text-[#326CE5]" },
+  { name: "GraphQL", icon: "simple-icons:graphql", color: "text-[#E10098]" },
+  { name: "Drizzle", icon: "simple-icons:drizzle", color: "text-[#C5F74F]" },
+];
 ---
-
-<section class="py-20 md:py-28 bg-core-surface relative overflow-hidden">
-    <div class="max-w-6xl mx-auto px-6 text-center">
-        <p class="text-xs font-semibold uppercase tracking-widest text-brand-ember mb-4">
-            Built for your stack
-        </p>
-        <h2 class="font-heading text-3xl md:text-4xl text-core-text-primary leading-[1.15] max-w-3xl mx-auto mb-6">
-            Whatever you're building, Blisp <span class="text-brand-ember">gets it.</span>
-        </h2>
-        <p class="text-core-text-secondary text-lg max-w-2xl mx-auto mb-16 leading-relaxed">
-            Whether you're spinning up a monolithic NestJS backend or debugging a tricky React frontend, Blisp understands your context and finds the right resources.
-        </p>
-
-        <!-- Tech Logo Marquee -->
-        <div class="relative">
-            <div class="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-core-surface to-transparent z-10 pointer-events-none"></div>
-            <div class="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-core-surface to-transparent z-10 pointer-events-none"></div>
-
-            <!-- Row 1 -->
-            <div class="flex gap-6 mb-6 overflow-hidden marquee-container">
-                <div class="flex gap-6 animate-marquee">
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="React" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">React</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Node.js" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Node.js</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Python" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Python</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="TypeScript" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">TypeScript</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="PostgreSQL" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">PostgreSQL</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Docker" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Docker</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="AWS" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">AWS</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="NestJS" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">NestJS</span>
-                    </div>
-                </div>
-                <!-- Duplicate for seamless loop -->
-                <div class="flex gap-6 animate-marquee" aria-hidden="true">
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="React" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">React</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Node.js" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Node.js</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Python" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Python</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="TypeScript" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">TypeScript</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="PostgreSQL" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">PostgreSQL</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Docker" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Docker</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="AWS" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">AWS</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="NestJS" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">NestJS</span>
-                    </div>
-                </div>
+<div class="flex gap-6 mb-6 overflow-hidden marquee-container">
+    <div class="flex gap-6 animate-marquee whitespace-nowrap">
+        {[...techStack, ...techStack].map((tech) => (
+            <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3 hover:border-brand-ember/20 hover:shadow-card transition-all duration-300">
+                <Icon name={tech.icon} class={`w-7 h-7 ${tech.color}`} />
+                <span class="text-sm font-medium text-core-text-primary">{tech.name}</span>
             </div>
-
-            <!-- Row 2 (reverse direction) -->
-            <div class="flex gap-6 overflow-hidden marquee-container">
-                <div class="flex gap-6 animate-marquee-reverse">
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Next.js" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Next.js</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Go" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Go</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Rust" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Rust</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Swift" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Swift</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Redis" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Redis</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Kubernetes" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Kubernetes</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="GraphQL" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">GraphQL</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Prisma" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Prisma</span>
-                    </div>
-                </div>
-                <!-- Duplicate for seamless loop -->
-                <div class="flex gap-6 animate-marquee-reverse" aria-hidden="true">
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Next.js" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Next.js</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Go" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Go</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Rust" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Rust</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Swift" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Swift</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Redis" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Redis</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Kubernetes" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Kubernetes</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="GraphQL" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">GraphQL</span>
-                    </div>
-                    <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3">
-                        <img src="" alt="Prisma" class="w-7 h-7" />
-                        <span class="text-sm font-medium text-core-text-primary">Prisma</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+        ))}
     </div>
-</section>
+</div>
 
-<style>
-    @keyframes marquee {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(-100%); }
-    }
-    @keyframes marquee-reverse {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(0); }
-    }
-    .animate-marquee {
-        animation: marquee 40s linear infinite;
-    }
-    .animate-marquee-reverse {
-        animation: marquee-reverse 40s linear infinite;
-    }
-    .marquee-container:hover .animate-marquee,
-    .marquee-container:hover .animate-marquee-reverse {
-        animation-play-state: paused;
-    }
-</style>
+<div class="flex gap-6 overflow-hidden marquee-container">
+    <div class="flex gap-6 animate-marquee-reverse whitespace-nowrap">
+        {[...reverseStack, ...reverseStack].map((tech) => (
+            <div class="flex-shrink-0 px-8 py-4 rounded-2xl bg-core-background border border-semantic-border/30 flex items-center gap-3 hover:border-brand-ember/20 hover:shadow-card transition-all duration-300">
+                <Icon name={tech.icon} class={`w-7 h-7 ${tech.color}`} />
+                <span class="text-sm font-medium text-core-text-primary">{tech.name}</span>
+            </div>
+        ))}
+    </div>
+</div>
