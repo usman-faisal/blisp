@@ -3,12 +3,12 @@ import { Resend } from 'resend';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
-const resend = new Resend(import.meta.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const ratelimit = new Ratelimit({
   redis: new Redis({
-    url: import.meta.env.UPSTASH_REDIS_REST_URL,
-    token: import.meta.env.UPSTASH_REDIS_REST_TOKEN,
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
   }),
   limiter: Ratelimit.slidingWindow(3, '1 h'),
 });
@@ -47,7 +47,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     // Add to audience
     await resend.contacts.create({ email, unsubscribed: false });
 
-    const siteUrl = import.meta.env.PUBLIC_SITE_URL ?? 'https://blisp.vercel.app';
+    const siteUrl = process.env.PUBLIC_SITE_URL ?? 'https://blisp.vercel.app';
 
     await resend.emails.send({
       from: 'Blisp <noreply@resend.dev>',
