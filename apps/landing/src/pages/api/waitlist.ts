@@ -50,7 +50,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     const siteUrl = import.meta.env.PUBLIC_SITE_URL ?? 'https://blisp.vercel.app';
 
     await resend.emails.send({
-      from: 'Blisp <onboarding@resend.dev>',
+      from: 'Blisp <noreply@resend.dev>',
       to: email,
       subject: "You're on the Blisp waitlist!",
       html: `<!DOCTYPE html>
