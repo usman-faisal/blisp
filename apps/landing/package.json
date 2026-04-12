@@ -12,9 +12,9 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/node": "^10.0.4",
     "@astrojs/sitemap": "^3.7.2",
     "@astrojs/tailwind": "^6.0.2",
+    "@astrojs/vercel": "^10.0.4",
     "@blisp/tailwind-config": "workspace:*",
     "@iconify-json/simple-icons": "^1.2.77",
     "@upstash/ratelimit": "^2.0.8",
