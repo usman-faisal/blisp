@@ -62,7 +62,7 @@ export default function TabsLayout() {
           shadowOpacity: 0.06,
           shadowRadius: 12,
           height: (Platform.OS === 'ios' ? 88 : 64) + insets.bottom,
-          paddingBottom: (Platform.OS === 'ios' ? 28 : 8) + insets.bottom,
+          paddingBottom: (Platform.OS === 'ios' ? 4 : 8) + insets.bottom,
           paddingTop: 8,
         },
         sceneStyle: {

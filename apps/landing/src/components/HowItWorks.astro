@@ -1,4 +1,11 @@
 ---
+import { Image } from "astro:assets";
+import Home from "../assets/home.png";
+import Incubator from "../assets/incubator.png";
+import ProjectRoadmap from "../assets/project-roadmap.png";
+import Projects from "../assets/projects.png";
+import BrainDump from "../assets/brain-dump.png"
+import TaskResource from "../assets/task-resource.png";
 /* How It Works — 4-Step Pipeline */
 ---
 
@@ -71,24 +78,18 @@
                         </span>
                     </div>
                 </div>
-                <div class="relative bg-gradient-to-br from-brand-ember-mist/40 via-core-surface to-core-surface flex items-center justify-center min-h-[280px] md:min-h-0">
-                    <!-- App screenshot placeholder -->
-                    <div class="relative w-48 h-auto p-4">
-                        <div class="rounded-2xl bg-core-background border border-semantic-border/40 aspect-[9/16] flex items-center justify-center">
-                            <span class="text-core-text-disabled text-sm">Screenshot</span>
-                        </div>
+                <div class="relative bg-gradient-to-br from-brand-ember-mist/40 via-core-surface to-core-surface flex items-center justify-center min-h-[320px] md:min-h-0 py-10">
+                    <div class="relative w-52 drop-shadow-2xl">
+                        <Image src={BrainDump} alt="Brain dump screen" class="rounded-3xl w-full h-auto border border-semantic-border/20" />
                     </div>
                 </div>
             </div>
 
             <!-- Step 2 -->
             <div class="reveal group grid grid-cols-1 md:grid-cols-2 gap-0 rounded-3xl bg-core-background border border-semantic-border/30 overflow-hidden hover:shadow-card hover:border-brand-sage/20 transition-all duration-500">
-                <div class="order-2 md:order-1 relative bg-gradient-to-bl from-green-50/40 via-core-surface to-core-surface flex items-center justify-center min-h-[280px] md:min-h-0">
-                    <!-- App screenshot placeholder -->
-                    <div class="relative w-48 h-auto p-4">
-                        <div class="rounded-2xl bg-core-background border border-semantic-border/40 aspect-[9/16] flex items-center justify-center">
-                            <span class="text-core-text-disabled text-sm">Screenshot</span>
-                        </div>
+                <div class="order-2 md:order-1 relative bg-gradient-to-bl from-green-50/40 via-core-surface to-core-surface flex items-center justify-center min-h-[320px] md:min-h-0 py-10">
+                    <div class="relative w-52 drop-shadow-2xl">
+                        <Image src={Incubator} alt="Incubator research screen" class="rounded-3xl w-full h-auto border border-semantic-border/20" />
                     </div>
                 </div>
                 <div class="order-1 md:order-2 p-10 md:p-12 flex flex-col justify-center">
@@ -135,24 +136,18 @@
                         </span>
                     </div>
                 </div>
-                <div class="relative bg-gradient-to-br from-yellow-50/40 via-core-surface to-core-surface flex items-center justify-center min-h-[280px] md:min-h-0">
-                    <!-- App screenshot placeholder -->
-                    <div class="relative w-48 h-auto p-4">
-                        <div class="rounded-2xl bg-core-background border border-semantic-border/40 aspect-[9/16] flex items-center justify-center">
-                            <span class="text-core-text-disabled text-sm">Screenshot</span>
-                        </div>
+                <div class="relative bg-gradient-to-br from-yellow-50/40 via-core-surface to-core-surface flex items-center justify-center min-h-[320px] md:min-h-0 py-10">
+                    <div class="relative w-52 drop-shadow-2xl">
+                        <Image src={Home} alt="Morning briefing daily plan screen" class="rounded-3xl w-full h-auto border border-semantic-border/20" />
                     </div>
                 </div>
             </div>
 
             <!-- Step 4 -->
             <div class="reveal group grid grid-cols-1 md:grid-cols-2 gap-0 rounded-3xl bg-core-background border border-semantic-border/30 overflow-hidden hover:shadow-card hover:border-semantic-info/20 transition-all duration-500">
-                <div class="order-2 md:order-1 relative bg-gradient-to-bl from-blue-50/40 via-core-surface to-core-surface flex items-center justify-center min-h-[280px] md:min-h-0">
-                    <!-- App screenshot placeholder -->
-                    <div class="relative w-48 h-auto p-4">
-                        <div class="rounded-2xl bg-core-background border border-semantic-border/40 aspect-[9/16] flex items-center justify-center">
-                            <span class="text-core-text-disabled text-sm">Screenshot</span>
-                        </div>
+                <div class="order-2 md:order-1 relative bg-gradient-to-bl from-blue-50/40 via-core-surface to-core-surface flex items-center justify-center min-h-[320px] md:min-h-0 py-10">
+                    <div class="relative w-52 drop-shadow-2xl">
+                        <Image src={Projects} alt="Projects and tasks screen" class="rounded-3xl w-full h-auto border border-semantic-border/20" />
                     </div>
                 </div>
                 <div class="order-1 md:order-2 p-10 md:p-12 flex flex-col justify-center">

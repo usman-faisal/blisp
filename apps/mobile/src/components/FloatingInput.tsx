@@ -131,7 +131,7 @@ export const FloatingInput = ({
           />
 
           {/* Mic button with glow + pulse */}
-          <Pressable onPressIn={onMicPressIn} onPressOut={onMicPressOut}>
+          <Pressable onPress={onMicPressIn} onPressOut={onMicPressOut}>
             <Animated.View
               style={[
                 styles.micContainer,

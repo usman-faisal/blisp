@@ -1,4 +1,5 @@
-import { Animated, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Platform, type StyleProp, type ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Props = {
   translateY: Animated.AnimatedInterpolation<number>;
@@ -15,13 +16,19 @@ type Props = {
  * on the sibling ScrollView's `contentContainerStyle`.
  */
 export function CollapsibleHeader({ translateY, opacity, height, style, children }: Props) {
+  const insets = useSafeAreaInsets();
+  // On iOS the app window extends behind the status bar, so we must offset by
+  // the safe-area top inset. On Android the window already starts below the
+  // status bar, so a fixed 8px gap is sufficient.
+  const topOffset = Platform.OS === 'ios' ? insets.top : 8;
+
   return (
     <Animated.View
       pointerEvents="box-none"
       style={[
         {
           position: 'absolute',
-          top: 8,
+          top: topOffset,
           left: 0,
           right: 0,
           zIndex: 10,

@@ -1,5 +1,9 @@
 ---
 /* Feature Deep Dives */
+import ProjectRoadmap from "../assets/project-roadmap.png"
+import Home from "../assets/home.png"
+import ResourceFetching from "../assets/task-resource.png"
+
 ---
 
 <section id="features" class="py-24 md:py-32 bg-core-background relative">
@@ -35,36 +39,25 @@
                         <span class="px-3 py-1.5 rounded-full bg-blue-50 text-semantic-info text-xs font-medium">Multi-project</span>
                     </div>
                 </div>
-                <!-- App screenshot placeholder -->
+                <!-- App screenshot -->
                 <div class="relative w-44 flex-shrink-0 hidden md:block">
-                    <div class="rounded-2xl bg-core-background border border-semantic-border/40 aspect-[9/16] flex items-center justify-center">
-                        <span class="text-core-text-disabled text-sm">Screenshot</span>
-                    </div>
+                    <img src={Home.src} alt="Daily Plans screenshot" class="rounded-2xl border border-semantic-border/40 shadow-card w-full object-cover" />
                 </div>
             </div>
 
-            <!-- Feature 2: Resource Fetching -->
-            <div class="reveal delay-1 lg:col-span-2 group rounded-3xl bg-core-surface border border-semantic-border/30 hover:border-brand-sage/20 hover:shadow-card p-10 md:p-12 transition-all duration-500">
-                <div class="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-brand-sage" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <!-- Feature 2: Voice Capture -->
+            <div class="reveal delay-1 lg:col-span-2 group rounded-3xl bg-core-surface border border-semantic-border/30 hover:border-brand-ember/20 hover:shadow-card p-10 md:p-12 transition-all duration-500">
+                <div class="w-12 h-12 rounded-2xl bg-brand-ember-mist flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-brand-ember" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
                 </div>
-                <h3 class="font-heading text-2xl text-core-text-primary mb-3">Agentic Resource Fetching</h3>
+                <h3 class="font-heading text-2xl text-core-text-primary mb-3">Frictionless Voice Capture</h3>
                 <p class="text-core-text-secondary leading-relaxed mb-6">
-                    Not just a to-do list. Blisp attaches the exact docs, repos, and tutorials you need for each task.
+                    One tap. Start talking. Blisp transcribes, understands context, and extracts actionable projects — all without breaking your flow. No templates, no forms, no friction.
                 </p>
-                <div class="space-y-3">
-                    <div class="flex items-center gap-3 text-sm text-core-text-secondary">
-                        <div class="w-2 h-2 rounded-full bg-brand-sage flex-shrink-0"></div>
-                        Docs matched to your stack
-                    </div>
-                    <div class="flex items-center gap-3 text-sm text-core-text-secondary">
-                        <div class="w-2 h-2 rounded-full bg-brand-sage flex-shrink-0"></div>
-                        GitHub repos & references
-                    </div>
-                    <div class="flex items-center gap-3 text-sm text-core-text-secondary">
-                        <div class="w-2 h-2 rounded-full bg-brand-sage flex-shrink-0"></div>
-                        Architectural best practices
-                    </div>
+                <div class="flex flex-wrap gap-2">
+                    <span class="px-3 py-1.5 rounded-full bg-brand-ember-mist text-brand-ember text-xs font-medium">Speech-to-text</span>
+                    <span class="px-3 py-1.5 rounded-full bg-brand-ember-mist text-brand-ember text-xs font-medium">Context-aware AI</span>
+                    <span class="px-3 py-1.5 rounded-full bg-brand-ember-mist text-brand-ember text-xs font-medium">Auto-extraction</span>
                 </div>
             </div>
         </div>
@@ -112,11 +105,9 @@
                             </div>
                         </div>
                     </div>
-                    <!-- App screenshot placeholder -->
+                    <!-- App screenshot -->
                     <div class="relative w-56 flex-shrink-0 hidden lg:block">
-                        <div class="rounded-2xl bg-core-background border border-semantic-border/40 aspect-[9/16] flex items-center justify-center shadow-card">
-                            <span class="text-core-text-disabled text-sm">Screenshot</span>
-                        </div>
+                        <img src={ProjectRoadmap.src} alt="Project Roadmap screenshot" class="rounded-2xl border border-semantic-border/40 shadow-card w-full object-cover" />
                     </div>
                 </div>
             </div>
@@ -140,27 +131,25 @@
                 </div>
             </div>
 
-            <!-- Feature 4: Voice Capture -->
-            <div class="reveal delay-1 lg:col-span-3 group rounded-3xl bg-core-surface border border-semantic-border/30 hover:border-brand-ember/20 hover:shadow-card p-10 md:p-12 flex flex-col md:flex-row gap-8 items-start transition-all duration-500">
+            <!-- Feature 4: Resource Fetching -->
+            <div class="reveal delay-1 lg:col-span-3 group rounded-3xl bg-core-surface border border-semantic-border/30 hover:border-brand-sage/20 hover:shadow-card p-10 md:p-12 flex flex-col md:flex-row gap-8 items-start transition-all duration-500">
                 <div class="flex-1">
-                    <div class="w-12 h-12 rounded-2xl bg-brand-ember-mist flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-brand-ember" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                    <div class="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-brand-sage" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                     </div>
-                    <h3 class="font-heading text-2xl text-core-text-primary mb-3">Frictionless Voice Capture</h3>
+                    <h3 class="font-heading text-2xl text-core-text-primary mb-3">Agentic Resource Fetching</h3>
                     <p class="text-core-text-secondary leading-relaxed mb-6">
-                        One tap. Start talking. Blisp transcribes, understands context, and extracts actionable projects — all without breaking your flow. No templates, no forms, no friction.
+                        Not just a to-do list. Blisp attaches the exact docs, repos, and tutorials you need for each task.
                     </p>
                     <div class="flex flex-wrap gap-2">
-                        <span class="px-3 py-1.5 rounded-full bg-brand-ember-mist text-brand-ember text-xs font-medium">Speech-to-text</span>
-                        <span class="px-3 py-1.5 rounded-full bg-brand-ember-mist text-brand-ember text-xs font-medium">Context-aware AI</span>
-                        <span class="px-3 py-1.5 rounded-full bg-brand-ember-mist text-brand-ember text-xs font-medium">Auto-extraction</span>
+                        <span class="px-3 py-1.5 rounded-full bg-green-50 text-brand-sage text-xs font-medium">Docs matched to your stack</span>
+                        <span class="px-3 py-1.5 rounded-full bg-green-50 text-brand-sage text-xs font-medium">GitHub repos & references</span>
+                        <span class="px-3 py-1.5 rounded-full bg-green-50 text-brand-sage text-xs font-medium">Architectural best practices</span>
                     </div>
                 </div>
-                <!-- App screenshot placeholder -->
+                <!-- App screenshot -->
                 <div class="relative w-44 flex-shrink-0 hidden md:block">
-                    <div class="rounded-2xl bg-core-background border border-semantic-border/40 aspect-[9/16] flex items-center justify-center">
-                        <span class="text-core-text-disabled text-sm">Screenshot</span>
-                    </div>
+                    <img src={ResourceFetching.src} alt="Resource Fetching screenshot" class="rounded-2xl border border-semantic-border/40 shadow-card w-full object-cover" />
                 </div>
             </div>
         </div>
