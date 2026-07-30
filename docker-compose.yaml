@@ -10,8 +10,9 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      # This maps to the NEW version-specific structure
-      - postgres_data:/var/lib/postgresql/data
+      # Postgres 18+ stores data in a version-specific subdirectory, so the
+      # mount must be at /var/lib/postgresql (not .../data, which 18 rejects).
+      - postgres_data:/var/lib/postgresql
 
   redis:
     image: redis:alpine

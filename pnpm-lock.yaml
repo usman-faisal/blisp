@@ -204,10 +204,10 @@ importers:
         version: 3.7.2
       '@astrojs/tailwind':
         specifier: ^6.0.2
-        version: 6.0.2(astro@6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@1.21.7)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3))(tailwindcss@3.4.19(yaml@2.8.3))(ts-node@10.9.2(@types/node@25.5.0)(typescript@5.9.3))
+        version: 6.0.2(astro@6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3))(tailwindcss@3.4.19(yaml@2.8.3))(ts-node@10.9.2(@types/node@25.5.0)(typescript@5.9.3))
       '@astrojs/vercel':
         specifier: ^10.0.4
-        version: 10.0.4(astro@6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@1.21.7)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3))(react@19.2.0)(rollup@4.60.0)
+        version: 10.0.4(astro@6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3))(react@19.2.0)(rollup@4.60.0)
       '@blisp/tailwind-config':
         specifier: workspace:*
         version: link:../../packages/tailwind-config
@@ -222,7 +222,7 @@ importers:
         version: 1.37.0
       astro:
         specifier: ^6.1.5
-        version: 6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@1.21.7)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3)
+        version: 6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3)
       astro-icon:
         specifier: ^1.1.5
         version: 1.1.5
@@ -438,7 +438,11 @@ importers:
 
   packages/ts-config: {}
 
-  packages/types: {}
+  packages/types:
+    dependencies:
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../db
 
 packages:
 
@@ -9115,6 +9119,7 @@ packages:
 
   uuid@8.3.2:
     resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   v8-compile-cache-lib@3.0.1:
@@ -9618,9 +9623,9 @@ snapshots:
       stream-replace-string: 2.0.0
       zod: 4.3.6
 
-  '@astrojs/tailwind@6.0.2(astro@6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@1.21.7)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3))(tailwindcss@3.4.19(yaml@2.8.3))(ts-node@10.9.2(@types/node@25.5.0)(typescript@5.9.3))':
+  '@astrojs/tailwind@6.0.2(astro@6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3))(tailwindcss@3.4.19(yaml@2.8.3))(ts-node@10.9.2(@types/node@25.5.0)(typescript@5.9.3))':
     dependencies:
-      astro: 6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@1.21.7)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3)
+      astro: 6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3)
       autoprefixer: 10.4.27(postcss@8.5.8)
       postcss: 8.5.8
       postcss-load-config: 4.0.2(postcss@8.5.8)(ts-node@10.9.2(@types/node@25.5.0)(typescript@5.9.3))
@@ -9640,14 +9645,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@astrojs/vercel@10.0.4(astro@6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@1.21.7)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3))(react@19.2.0)(rollup@4.60.0)':
+  '@astrojs/vercel@10.0.4(astro@6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3))(react@19.2.0)(rollup@4.60.0)':
     dependencies:
       '@astrojs/internal-helpers': 0.8.0
       '@vercel/analytics': 1.6.1(react@19.2.0)
       '@vercel/functions': 3.4.3
       '@vercel/nft': 1.5.0(rollup@4.60.0)
       '@vercel/routing-utils': 5.3.3
-      astro: 6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@1.21.7)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3)
+      astro: 6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3)
       esbuild: 0.27.4
       tinyglobby: 0.2.15
     transitivePeerDependencies:
@@ -13807,7 +13812,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  astro@6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@1.21.7)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3):
+  astro@6.1.5(@types/node@25.5.0)(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.46.1)(typescript@5.9.3)(yaml@2.8.3):
     dependencies:
       '@astrojs/compiler': 3.0.1
       '@astrojs/internal-helpers': 0.8.0
@@ -13858,8 +13863,8 @@ snapshots:
       unist-util-visit: 5.1.0
       unstorage: 1.17.5(@upstash/redis@1.37.0)(@vercel/functions@3.4.3)(idb-keyval@6.2.1)(ioredis@5.10.1)
       vfile: 6.0.3
-      vite: 7.3.2(@types/node@25.5.0)(jiti@1.21.7)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)
-      vitefu: 1.1.3(vite@7.3.2(@types/node@25.5.0)(jiti@1.21.7)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3))
+      vite: 7.3.2(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)
+      vitefu: 1.1.3(vite@7.3.2(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3))
       xxhash-wasm: 1.1.0
       yargs-parser: 22.0.0
       zod: 4.3.6
@@ -20197,7 +20202,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  vite@7.3.2(@types/node@25.5.0)(jiti@1.21.7)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3):
+  vite@7.3.2(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3):
     dependencies:
       esbuild: 0.27.4
       fdir: 6.5.0(picomatch@4.0.4)
@@ -20208,14 +20213,14 @@ snapshots:
     optionalDependencies:
       '@types/node': 25.5.0
       fsevents: 2.3.3
-      jiti: 1.21.7
+      jiti: 2.6.1
       lightningcss: 1.32.0
       terser: 5.46.1
       yaml: 2.8.3
 
-  vitefu@1.1.3(vite@7.3.2(@types/node@25.5.0)(jiti@1.21.7)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)):
+  vitefu@1.1.3(vite@7.3.2(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)):
     optionalDependencies:
-      vite: 7.3.2(@types/node@25.5.0)(jiti@1.21.7)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)
+      vite: 7.3.2(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)
 
   vlq@1.0.1: {}
 
