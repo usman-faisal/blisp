@@ -28,6 +28,8 @@ export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
         secretKey: this.configService.get('CLERK_SECRET_KEY'),
         clockSkewInMs: 60_000
       });
+      console.log('CLERK SUB:', tokenPayload.sub, tokenPayload.email);
+
 
       const user = await this.usersService.getUser(tokenPayload.sub);
 
