@@ -2,12 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PipelineStage } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { GetProjectPipelineResponse } from '@repo/types';
+import { ProjectAccessService } from 'src/projects/project-access.service';
 
 @Injectable()
 export class PipelineEventsService {
   private readonly logger = new Logger(PipelineEventsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: ProjectAccessService,
+  ) {}
 
   /**
    * Logs a pipeline stage event for a project.
@@ -30,8 +34,17 @@ export class PipelineEventsService {
     userId: string,
     projectId: string,
   ): Promise<GetProjectPipelineResponse> {
-    const project = await this.prisma.project.findFirst({
-      where: { id: projectId, userId },
+    // Members see the pipeline for a shared project, not only its creator.
+    if (!(await this.access.isMember(userId, projectId))) {
+      return {
+        data: { projectId, projectTitle: '', events: [] },
+        message: 'Project not found.',
+        success: false,
+      };
+    }
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
       select: { id: true, title: true },
     });
 

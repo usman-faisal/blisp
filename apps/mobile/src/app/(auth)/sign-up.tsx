@@ -35,7 +35,9 @@ export default function Page() {
           if (url.startsWith('http')) {
             window.location.href = url
           } else {
-            router.push(url as Href)
+            // replace, not push: pushing leaves the completed sign-up form on
+            // the stack, so back returns the user to it.
+            router.replace(url as Href)
           }
         },
       })
