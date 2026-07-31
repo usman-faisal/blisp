@@ -4,6 +4,7 @@ import { ProjectStatus, TaskStatus, Prisma } from '@repo/db';
 import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectDetailResponse, GetProjectStatsResponse, UpdateProjectResponse } from '@repo/types';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { DailyPlanCronService } from 'src/daily_plan/daily-plan.service';
+import { ProjectAccessService } from './project-access.service';
 
 @Injectable()
 export class ProjectsService {
@@ -12,6 +13,7 @@ export class ProjectsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dailyPlanCronService: DailyPlanCronService,
+    private readonly access: ProjectAccessService,
   ) {}
 
   /**
@@ -19,14 +21,16 @@ export class ProjectsService {
    * The existing hourly cron will pick up its tasks automatically.
    */
   async activateProject(userId: string, projectId: string): Promise<ActivateProjectResponse> {
-    const project = await this.prisma.project.findFirst({
-      where: { id: projectId, userId },
+    // Throws NotFound for non-members, so the lookup below no longer needs to
+    // filter on userId.
+    await this.access.assertMember(userId, projectId);
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
     });
 
     if (!project) {
-      throw new NotFoundException(
-        'Project not found. Please check the ID and make sure you own this project.',
-      );
+      throw new NotFoundException('Project not found.');
     }
 
     if (project.status === ProjectStatus.ACTIVE) {
@@ -62,12 +66,15 @@ export class ProjectsService {
   }
 
   async archiveProject(userId: string, projectId: string): Promise<ArchiveProjectResponse> {
-    const project = await this.prisma.project.findFirst({
-      where: { id: projectId, userId },
+    // Archiving hides the project from every member, so it stays owner-only.
+    await this.access.assertOwner(userId, projectId);
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
     });
 
     if (!project) {
-      throw new NotFoundException('Project not found or you do not own it.');
+      throw new NotFoundException('Project not found.');
     }
 
     if (project.status === ProjectStatus.ARCHIVED) {
@@ -93,12 +100,15 @@ export class ProjectsService {
   }
 
   async updateProject(userId: string, projectId: string, dto: UpdateProjectDto): Promise<UpdateProjectResponse> {
-    const project = await this.prisma.project.findFirst({
-      where: { id: projectId, userId },
+    // Any member may edit the shared roadmap's title, description and stack.
+    await this.access.assertMember(userId, projectId);
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
     });
 
     if (!project) {
-      throw new NotFoundException('Project not found or you do not own it.');
+      throw new NotFoundException('Project not found.');
     }
 
     const updatePayload: Prisma.ProjectUpdateInput = {};
@@ -126,9 +136,13 @@ export class ProjectsService {
   }
 
   async getProjects(userId: string, status?: ProjectStatus): Promise<GetProjectsResponse> {
+    // Every project the user belongs to, not only the ones they created.
+    // An empty list scopes this to nothing, which is the safe direction.
+    const projectIds = await this.access.memberProjectIds(userId);
+
     const projects = await this.prisma.project.findMany({
       where: {
-        userId,
+        id: { in: projectIds },
         ...(status && { status }),
       },
       include: {
@@ -161,8 +175,10 @@ export class ProjectsService {
   }
 
   async getProjectById(userId: string, projectId: string): Promise<GetProjectDetailResponse> {
-    const project = await this.prisma.project.findFirst({
-      where: { id: projectId, userId },
+    await this.access.assertMember(userId, projectId);
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
       include: {
         resources: true,
         tasks: {
@@ -179,7 +195,7 @@ export class ProjectsService {
     });
 
     if (!project) {
-      throw new NotFoundException('Project not found or you do not own it.');
+      throw new NotFoundException('Project not found.');
     }
 
     return {
@@ -205,9 +221,11 @@ export class ProjectsService {
   }
 
   async getProjectStats(userId: string): Promise<GetProjectStatsResponse> {
+    const projectIds = await this.access.memberProjectIds(userId);
+
     const stats = await this.prisma.project.groupBy({
       by: ['status'],
-      where: { userId },
+      where: { id: { in: projectIds } },
       _count: {
         id: true,
       },
