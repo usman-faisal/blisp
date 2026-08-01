@@ -64,6 +64,8 @@ model User {
   dailyPlans       DailyPlan[]
 
   projectMembers   ProjectMember[]
+  invitesCreated   ProjectInvite[] @relation("InviteCreator")
+  invitesAccepted  ProjectInvite[] @relation("InviteJoiner")
 
   @@index([name])
   @@index([email])
@@ -146,7 +148,21 @@ model ProjectInvite {
   usedBy    String?   @map("used_by")
   createdAt DateTime  @default(now()) @map("created_at")
 
+  // Names captured at invite time. Denormalised on purpose: the relations below
+  // give the current name, but these make an invite row readable on its own
+  // (Studio, logs, SQL) without a join, and preserve who-was-who historically.
+  // A later rename does not rewrite them — that is the intent, not a defect.
+  createdByName String  @map("created_by_name")
+  usedByName    String? @map("used_by_name")
+
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Relations so who-invited-whom is readable by joining rather than by
+  // eyeballing Clerk ids. Names stay current: no snapshot to go stale.
+  // Cascade on the creator (their invites are meaningless without them);
+  // SetNull on the joiner so the invite's audit trail survives their removal.
+  creator   User      @relation("InviteCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  joiner    User?     @relation("InviteJoiner", fields: [usedBy], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@map("project_invites")
