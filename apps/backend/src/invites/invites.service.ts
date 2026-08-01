@@ -15,8 +15,13 @@ import {
   GetProjectMembersResponse,
   RemoveMemberResponse,
 } from '@repo/types';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectAccessService } from 'src/projects/project-access.service';
+import {
+  COLLABORATION_EVENTS,
+  MemberJoinedEvent,
+} from 'src/notifications/events/collaboration.events';
 
 /** How long a fresh invite stays usable. */
 const INVITE_TTL_DAYS = 7;
@@ -35,6 +40,7 @@ export class InvitesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: ProjectAccessService,
+    private readonly events: EventEmitter2,
   ) {}
 
   /**
@@ -237,17 +243,31 @@ export class InvitesService {
         throw new GoneException('This invite has already been used.');
       }
 
-      return tx.projectMember.create({
+      const created = await tx.projectMember.create({
         data: {
           projectId: invite.projectId,
           userId,
           role: ProjectRole.MEMBER,
         },
       });
+
+      return { ...created, joinerName: joiner?.name ?? 'A collaborator' };
     });
 
     this.logger.log(
       `"${invite.project.title}": ${userId} joined via invite ${invite.code} from ${invite.creator.name}.`,
+    );
+
+    // Emitted after the transaction commits, so a notification failure cannot
+    // roll back the join. The listener handles its own errors.
+    this.events.emit(
+      COLLABORATION_EVENTS.MEMBER_JOINED,
+      new MemberJoinedEvent(
+        invite.projectId,
+        invite.project.title,
+        userId,
+        membership.joinerName,
+      ),
     );
 
     return {

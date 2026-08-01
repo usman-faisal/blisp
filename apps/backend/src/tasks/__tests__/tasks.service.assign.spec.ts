@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectAccessService } from 'src/projects/project-access.service';
 import { TasksService } from '../tasks.service';
@@ -11,6 +12,8 @@ describe('TasksService — assignment', () => {
   const mockPrisma = {
     task: { findUnique: jest.fn(), update: jest.fn() },
     projectMember: { findUnique: jest.fn() },
+    // The service resolves the actor's name for the notification event.
+    user: { findUnique: jest.fn().mockResolvedValue({ name: 'Alice' }) },
   };
 
   const mockAccess = {
@@ -26,7 +29,13 @@ describe('TasksService — assignment', () => {
   const TASK = 'task-1';
   const PROJECT = 'project-1';
 
-  const task = { id: TASK, title: 'Wire up auth', projectId: PROJECT };
+  // project.title is selected for the notification event's message.
+  const task = {
+    id: TASK,
+    title: 'Wire up auth',
+    projectId: PROJECT,
+    project: { title: 'Shared roadmap' },
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -36,6 +45,7 @@ describe('TasksService — assignment', () => {
         TasksService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ProjectAccessService, useValue: mockAccess },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 

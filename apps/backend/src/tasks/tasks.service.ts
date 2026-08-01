@@ -6,6 +6,13 @@ import { AssignTaskDto } from './dto/assign-task.dto';
 import { ProjectAccessService } from 'src/projects/project-access.service';
 import { AssignTaskResponse } from '@repo/types';
 import { BadRequestException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { TaskStatus } from '@repo/db';
+import {
+  COLLABORATION_EVENTS,
+  TaskAssignedEvent,
+  TaskCompletedEvent,
+} from 'src/notifications/events/collaboration.events';
 
 @Injectable()
 export class TasksService {
@@ -14,6 +21,7 @@ export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: ProjectAccessService,
+    private readonly events: EventEmitter2,
   ) {}
 
   async getTaskById(userId: string, taskId: string): Promise<GetTaskDetailResponse> {
@@ -92,6 +100,27 @@ export class TasksService {
 
     this.logger.log(`Task "${updated.title}" (${taskId}) updated to ${dto.status} for user ${userId}.`);
 
+    // Only completion is worth interrupting teammates for. TODO and
+    // IN_PROGRESS churn would make the notification list useless.
+    if (dto.status === TaskStatus.DONE) {
+      const actor = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true },
+      });
+
+      this.events.emit(
+        COLLABORATION_EVENTS.TASK_COMPLETED,
+        new TaskCompletedEvent(
+          updated.id,
+          updated.title,
+          updated.project.id,
+          updated.project.title,
+          userId,
+          actor?.name ?? 'A collaborator',
+        ),
+      );
+    }
+
     return {
       data: {
         taskId: updated.id,
@@ -117,7 +146,12 @@ export class TasksService {
   ): Promise<AssignTaskResponse> {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
-      select: { id: true, title: true, projectId: true },
+      select: {
+        id: true,
+        title: true,
+        projectId: true,
+        project: { select: { title: true } },
+      },
     });
 
     if (!task) {
@@ -157,6 +191,25 @@ export class TasksService {
       assigneeId
         ? `Task "${updated.title}" (${taskId}) assigned to ${assigneeName}.`
         : `Task "${updated.title}" (${taskId}) unassigned.`,
+    );
+
+    // The listener ignores unassignment and self-assignment; emitting either
+    // way keeps the branching in one place.
+    const actor = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+
+    this.events.emit(
+      COLLABORATION_EVENTS.TASK_ASSIGNED,
+      new TaskAssignedEvent(
+        updated.id,
+        updated.title,
+        task.project.title,
+        assigneeId,
+        userId,
+        actor?.name ?? 'A collaborator',
+      ),
     );
 
     return {
