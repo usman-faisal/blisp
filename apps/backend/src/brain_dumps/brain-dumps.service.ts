@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { User, ProjectStatus, BrainDumpStatus } from '@repo/db';
+import { User, ProjectStatus, BrainDumpStatus, ProjectRole } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { CreateBrainDumpDto } from './dto/create-brain-dump.dto';
 import { AiService } from 'src/ai/ai.service';
@@ -59,6 +59,13 @@ export class BrainDumpsService {
               classification: response.classification,
               status: response.suggestedStatus,
               techStack: response.techStack,
+              // The creator must be a member, not only the userId owner: project
+              // listing and access checks go through ProjectMember. Without this
+              // the project exists but is invisible to everyone, including its
+              // creator.
+              members: {
+                create: { userId: user.id, role: ProjectRole.OWNER },
+              },
             },
           },
         },
