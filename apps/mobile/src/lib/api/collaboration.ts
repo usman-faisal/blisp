@@ -1,9 +1,11 @@
 import { apiClient } from './client';
 import type {
   AcceptInviteResponse,
+  AssignTaskResponse,
   CreateInviteResponse,
   GetInvitePreviewResponse,
   GetProjectMembersResponse,
+  GetProjectProgressResponse,
   RemoveMemberResponse,
 } from '@repo/types';
 
@@ -46,6 +48,34 @@ export const getInvitePreview = async (code: string): Promise<GetInvitePreviewRe
  */
 export const acceptInvite = async (code: string): Promise<AcceptInviteResponse> => {
   const response = await apiClient.post<AcceptInviteResponse>(`/invites/${code}/accept`);
+  return response.data;
+};
+
+/**
+ * Overall and per-member completion for a project.
+ * GET /projects/:id/progress
+ */
+export const getProjectProgress = async (
+  projectId: string,
+): Promise<GetProjectProgressResponse> => {
+  const response = await apiClient.get<GetProjectProgressResponse>(
+    `/projects/${projectId}/progress`,
+  );
+  return response.data;
+};
+
+/**
+ * Assign a task to a member, or pass null to return it to the backlog.
+ * Any member may reassign.
+ * PATCH /tasks/:id/assign
+ */
+export const assignTask = async (
+  taskId: string,
+  assigneeId: string | null,
+): Promise<AssignTaskResponse> => {
+  const response = await apiClient.patch<AssignTaskResponse>(`/tasks/${taskId}/assign`, {
+    assigneeId,
+  });
   return response.data;
 };
 

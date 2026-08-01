@@ -189,6 +189,9 @@ export interface ProjectTaskResponse {
   status: Task['status'];
   plannedFor: string | null;
   createdAt: string;
+  /** Null when nobody has claimed the task. */
+  assigneeId: string | null;
+  assigneeName: string | null;
 }
 
 export interface ProjectDetailResponsePayload {

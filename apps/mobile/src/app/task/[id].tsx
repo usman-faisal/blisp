@@ -1,7 +1,11 @@
 import { Container } from '@/components/ui/Container';
 import Text from '@/components/ui/Text';
 import { useTaskDetail } from '@/hooks/useTaskDetail';
+import { useProjectMembers } from '@/hooks/useProjectMembers';
+import { AssigneePicker } from '@/components/ui/AssigneePicker';
+import { MemberAvatar } from '@/components/ui/MemberAvatar';
 import { updateTaskStatus } from '@/lib/api/tasks';
+import { assignTask } from '@/lib/api/collaboration';
 import { archiveProject } from '@/lib/api/projects';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -171,9 +175,24 @@ export default function TaskDetailScreen() {
   const router = useRouter();
   const { data: task, isLoading, mutate } = useTaskDetail(id);
 
+  const { data: members } = useProjectMembers(task?.project.id ?? '');
+
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
+
+  // Optimistic assignee, mirroring the status handling below. `undefined` means
+  // "no pending change" — null is a real value here, meaning unassigned.
+  const [optimisticAssignee, setOptimisticAssignee] = useState<
+    { id: string | null; name: string | null } | undefined
+  >(undefined);
+
+  const assigneeId = optimisticAssignee ? optimisticAssignee.id : (task?.assigneeId ?? null);
+  const assigneeName = optimisticAssignee
+    ? optimisticAssignee.name
+    : (task?.assigneeName ?? null);
 
   // Optimistic status so the UI feels instant
   const [optimisticStatus, setOptimisticStatus] = useState<TaskStatusKey | null>(null);
@@ -181,8 +200,44 @@ export default function TaskDetailScreen() {
 
   // Sync optimistic state when real data arrives
   useEffect(() => {
-    if (task) setOptimisticStatus(null);
+    if (task) {
+      setOptimisticStatus(null);
+      setOptimisticAssignee(undefined);
+    }
   }, [task]);
+
+  /* --- Assignment ---------------------------------------------------- */
+  const handleAssign = useCallback(
+    async (nextAssigneeId: string | null) => {
+      if (!task) return;
+
+      setIsPickerOpen(false);
+      if (nextAssigneeId === assigneeId) return;
+
+      const previous = optimisticAssignee;
+      const nextName =
+        nextAssigneeId === null
+          ? null
+          : (members.find((m) => m.userId === nextAssigneeId)?.name ?? null);
+
+      setOptimisticAssignee({ id: nextAssigneeId, name: nextName });
+      setIsAssigning(true);
+      try {
+        await assignTask(task.id, nextAssigneeId);
+        mutate();
+      } catch (error: any) {
+        console.error('[TaskDetail] Assign error:', error);
+        setOptimisticAssignee(previous); // revert
+        Alert.alert(
+          'Could not assign',
+          error?.response?.data?.message ?? 'Something went wrong. Please try again.',
+        );
+      } finally {
+        setIsAssigning(false);
+      }
+    },
+    [task, assigneeId, optimisticAssignee, members, mutate],
+  );
 
   /* --- Status change ------------------------------------------------ */
   const handleStatusChange = useCallback(
@@ -297,6 +352,44 @@ export default function TaskDetailScreen() {
             </Text>
           </View>
 
+          {/* ── Assignee ────────────────────────────────────────────── */}
+          <View className="mt-6">
+            <Text className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-core-text-disabled">
+              Assigned to
+            </Text>
+
+            <Pressable
+              onPress={() => setIsPickerOpen(true)}
+              disabled={isAssigning}
+              className="flex-row items-center gap-3 rounded-2xl bg-core-surface p-3 active:opacity-70">
+              {assigneeName ? (
+                <MemberAvatar name={assigneeName} size={36} />
+              ) : (
+                <View className="h-9 w-9 items-center justify-center rounded-full bg-core-surface-elevated">
+                  <Ionicons name="person-outline" size={18} color="#6B6560" />
+                </View>
+              )}
+
+              <View className="flex-1">
+                <Text
+                  className={`text-sm font-semibold ${
+                    assigneeName ? 'text-core-text-primary' : 'text-core-text-secondary'
+                  }`}>
+                  {assigneeName ?? 'Unassigned'}
+                </Text>
+                <Text className="text-xs text-core-text-disabled">
+                  {assigneeName ? 'Tap to reassign' : 'Tap to claim this task'}
+                </Text>
+              </View>
+
+              {isAssigning ? (
+                <ActivityIndicator size="small" color="#E8612A" />
+              ) : (
+                <Ionicons name="chevron-forward" size={18} color="#B0AAA3" />
+              )}
+            </Pressable>
+          </View>
+
           {/* ── Status selector ─────────────────────────────────────── */}
           <View className="mt-6">
             <Text className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-core-text-disabled">
@@ -351,6 +444,14 @@ export default function TaskDetailScreen() {
           </View>
         </ScrollView>
       )}
+
+      <AssigneePicker
+        visible={isPickerOpen}
+        members={members}
+        selectedId={assigneeId}
+        onSelect={handleAssign}
+        onClose={() => setIsPickerOpen(false)}
+      />
     </Container>
   );
 }
