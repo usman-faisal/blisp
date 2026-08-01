@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectStatus, TaskStatus, Prisma } from '@repo/db';
-import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectDetailResponse, GetProjectStatsResponse, UpdateProjectResponse } from '@repo/types';
+import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectDetailResponse, GetProjectStatsResponse, GetProjectProgressResponse, UpdateProjectResponse } from '@repo/types';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { DailyPlanCronService } from 'src/daily_plan/daily-plan.service';
 import { ProjectAccessService } from './project-access.service';
@@ -216,6 +216,86 @@ export class ProjectsService {
         })),
       },
       message: 'Project retrieved successfully.',
+      success: true,
+    };
+  }
+
+  /**
+   * Overall and per-member completion for a shared project.
+   *
+   * Aggregated in the database rather than by loading tasks into memory: this
+   * is called on every roadmap view, and a project can hold hundreds of tasks.
+   */
+  async getProjectProgress(
+    userId: string,
+    projectId: string,
+  ): Promise<GetProjectProgressResponse> {
+    await this.access.assertMember(userId, projectId);
+
+    const [byStatus, byAssignee, members] = await Promise.all([
+      this.prisma.task.groupBy({
+        by: ['status'],
+        where: { projectId },
+        _count: { id: true },
+      }),
+      this.prisma.task.groupBy({
+        by: ['assigneeId', 'status'],
+        where: { projectId },
+        _count: { id: true },
+      }),
+      this.prisma.projectMember.findMany({
+        where: { projectId },
+        include: { user: { select: { name: true } } },
+        orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
+      }),
+    ]);
+
+    const countFor = (status: TaskStatus) =>
+      byStatus.find((row) => row.status === status)?._count.id ?? 0;
+
+    const done = countFor(TaskStatus.DONE);
+    const inProgress = countFor(TaskStatus.IN_PROGRESS);
+    const todo = countFor(TaskStatus.TODO);
+    const total = done + inProgress + todo;
+
+    const perMember = members.map((member) => {
+      const rows = byAssignee.filter((row) => row.assigneeId === member.userId);
+      const forStatus = (status: TaskStatus) =>
+        rows.find((row) => row.status === status)?._count.id ?? 0;
+
+      const memberDone = forStatus(TaskStatus.DONE);
+      const memberInProgress = forStatus(TaskStatus.IN_PROGRESS);
+      const memberTodo = forStatus(TaskStatus.TODO);
+
+      return {
+        userId: member.userId,
+        name: member.user.name,
+        role: member.role,
+        assigned: memberDone + memberInProgress + memberTodo,
+        done: memberDone,
+        inProgress: memberInProgress,
+        todo: memberTodo,
+      };
+    });
+
+    const unassigned = byAssignee
+      .filter((row) => row.assigneeId === null)
+      .reduce((sum, row) => sum + row._count.id, 0);
+
+    return {
+      data: {
+        overall: {
+          total,
+          done,
+          inProgress,
+          todo,
+          // Guard the divide: a project with no tasks is 0% complete, not NaN.
+          percentComplete: total === 0 ? 0 : Math.round((done / total) * 100),
+        },
+        perMember,
+        unassigned,
+      },
+      message: 'Project progress retrieved successfully.',
       success: true,
     };
   }
