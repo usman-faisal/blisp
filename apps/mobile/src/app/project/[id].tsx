@@ -2,9 +2,11 @@ import { Container } from '@/components/ui/Container';
 import Text from '@/components/ui/Text';
 import { useProjectDetail } from '@/hooks/useProjectDetail';
 import { useProjectMembers } from '@/hooks/useProjectMembers';
-import { MemberAvatarStack } from '@/components/ui/MemberAvatar';
+import { useProjectProgress } from '@/hooks/useProjectProgress';
+import { MemberAvatar, MemberAvatarStack } from '@/components/ui/MemberAvatar';
+import { ProjectProgressPanel } from '@/components/ui/ProjectProgressPanel';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useCallback } from 'react';
 import {
   View,
@@ -78,12 +80,14 @@ function TaskStatusIcon({ status }: { status: string }) {
 function TaskNode({
   title,
   status,
+  assigneeName,
   isToday,
   isLast,
   onPress,
 }: {
   title: string;
   status: string;
+  assigneeName: string | null;
   isToday: boolean;
   isLast: boolean;
   onPress: () => void;
@@ -116,6 +120,24 @@ function TaskNode({
             <View className="rounded-full bg-brand-ember-mist px-2 py-0.5">
               <Text className="text-xs font-semibold text-brand-ember">Today</Text>
             </View>
+          )}
+        </View>
+
+        {/* Unclaimed tasks say so rather than showing nothing — on a shared
+            project, an empty slot is a prompt to pick the task up. */}
+        <View className="mt-1.5 flex-row items-center gap-x-1.5">
+          {assigneeName ? (
+            <>
+              <MemberAvatar name={assigneeName} size={18} />
+              <Text className="text-xs text-core-text-secondary" numberOfLines={1}>
+                {assigneeName}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="person-outline" size={12} color="#B0AAA3" />
+              <Text className="text-xs text-core-text-disabled">Unassigned</Text>
+            </>
           )}
         </View>
       </View>
@@ -153,19 +175,30 @@ export default function ProjectRoadmapScreen() {
   const router = useRouter();
   const { data: project, isLoading, mutate } = useProjectDetail(id);
   const { data: members } = useProjectMembers(id);
+  const { data: progress, mutate: mutateProgress } = useProjectProgress(id);
   const [refreshing, setRefreshing] = useState(false);
   const [completedExpanded, setCompletedExpanded] = useState(false);
+
+  // Assignment and status changes happen on the task detail screen. Without a
+  // refetch on return, the roadmap keeps showing the counts from before.
+  useFocusEffect(
+    useCallback(() => {
+      mutate();
+      mutateProgress();
+    }, [mutate, mutateProgress]),
+  );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await mutate();
+      // Together, or the bars and the task rows disagree until the next pull.
+      await Promise.all([mutate(), mutateProgress()]);
     } catch (error) {
       console.error('[ProjectRoadmap] Refresh error:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [mutate]);
+  }, [mutate, mutateProgress]);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -238,6 +271,10 @@ export default function ProjectRoadmapScreen() {
             </View>
           </View>
 
+          {/* Per-member breakdown, only once the project is actually shared —
+              on a solo project it would just restate the bar above. */}
+          {progress && members.length > 1 && <ProjectProgressPanel progress={progress} />}
+
           {/* Roadmap section label */}
           <View className="mt-8 mb-4 flex-row items-center gap-x-2">
             <Ionicons name="map-outline" size={14} color="#C9A84C" />
@@ -252,6 +289,7 @@ export default function ProjectRoadmapScreen() {
               key={task.id}
               title={task.title}
               status={task.status}
+              assigneeName={task.assigneeName}
               isToday={task.plannedFor === todayStr}
               isLast={index === activeTasks.length - 1 && completedTasks.length === 0}
               onPress={() => router.push(`/task/${task.id}` as any)}
@@ -288,6 +326,7 @@ export default function ProjectRoadmapScreen() {
                     key={task.id}
                     title={task.title}
                     status={task.status}
+                    assigneeName={task.assigneeName}
                     isToday={task.plannedFor === todayStr}
                     isLast={index === completedTasks.length - 1}
                     onPress={() => router.push(`/task/${task.id}` as any)}
