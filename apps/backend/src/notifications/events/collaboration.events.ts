@@ -10,6 +10,7 @@ export const COLLABORATION_EVENTS = {
   MEMBER_JOINED: 'collaboration.member.joined',
   TASK_ASSIGNED: 'collaboration.task.assigned',
   TASK_COMPLETED: 'collaboration.task.completed',
+  TASK_COMMENTED: 'collaboration.task.commented',
 } as const;
 
 export class MemberJoinedEvent {
@@ -44,5 +45,22 @@ export class TaskCompletedEvent {
     /** Who completed it — excluded from the recipients. */
     readonly actorId: string,
     readonly actorName: string,
+  ) {}
+}
+
+export class TaskCommentedEvent {
+  constructor(
+    readonly taskId: string,
+    readonly taskTitle: string,
+    readonly projectId: string,
+    readonly projectTitle: string,
+    /** Who wrote it — never notified about their own comment. */
+    readonly actorId: string,
+    readonly actorName: string,
+    /** Project owner, so they hear about every comment. Null if they wrote it. */
+    readonly projectOwnerId: string | null,
+    /** Members named with @ in the body. Each is notified individually. */
+    readonly mentionedUserIds: string[],
+    readonly excerpt: string,
   ) {}
 }

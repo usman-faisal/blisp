@@ -5,6 +5,7 @@ import {
   COLLABORATION_EVENTS,
   MemberJoinedEvent,
   TaskAssignedEvent,
+  TaskCommentedEvent,
   TaskCompletedEvent,
 } from './events/collaboration.events';
 
@@ -84,6 +85,45 @@ export class CollaborationNotificationsListener {
       });
     } catch (error) {
       this.logger.error(`Failed to notify assignee of task ${event.taskId}.`, error);
+    }
+  }
+
+  /**
+   * Two audiences, deliberately different messages:
+   *
+   *   - anyone @mentioned gets "X mentioned you"
+   *   - the project owner gets "X commented" so they keep oversight
+   *
+   * A mentioned owner receives only the mention — being told twice about one
+   * comment reads as a bug. The comment's author is never notified either way.
+   */
+  @OnEvent(COLLABORATION_EVENTS.TASK_COMMENTED)
+  async onTaskCommented(event: TaskCommentedEvent): Promise<void> {
+    try {
+      const mentioned = event.mentionedUserIds.filter((id) => id !== event.actorId);
+
+      if (mentioned.length > 0) {
+        await this.notify(mentioned, {
+          title: 'You were mentioned',
+          message: `${event.actorName} mentioned you on "${event.taskTitle}": ${event.excerpt}`,
+          url: `/task/${event.taskId}`,
+        });
+      }
+
+      const notifyOwner =
+        event.projectOwnerId &&
+        event.projectOwnerId !== event.actorId &&
+        !mentioned.includes(event.projectOwnerId);
+
+      if (notifyOwner) {
+        await this.notify([event.projectOwnerId!], {
+          title: 'New comment',
+          message: `${event.actorName} commented on "${event.taskTitle}": ${event.excerpt}`,
+          url: `/task/${event.taskId}`,
+        });
+      }
+    } catch (error) {
+      this.logger.error(`Failed to notify about a comment on ${event.taskId}.`, error);
     }
   }
 
