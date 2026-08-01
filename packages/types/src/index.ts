@@ -286,3 +286,22 @@ export interface ProjectProgressPayload {
 }
 
 export type GetProjectProgressResponse = ApiResponse<ProjectProgressPayload>;
+
+export interface TaskCommentResponse {
+  id: string;
+  body: string;
+  authorId: string;
+  /** Byline as it was when written; see the snapshot note on TaskComment. */
+  authorName: string;
+  createdAt: string;
+  updatedAt: string;
+  /** True for the requester's own comments, so the UI can offer edit/delete. */
+  isOwn: boolean;
+  /** Members named with @ in the body, resolved to ids the client can link. */
+  mentionedUserIds: string[];
+}
+
+export type GetTaskCommentsResponse = ApiResponse<TaskCommentResponse[]>;
+export type CreateTaskCommentResponse = ApiResponse<TaskCommentResponse>;
+export type UpdateTaskCommentResponse = ApiResponse<TaskCommentResponse>;
+export type DeleteTaskCommentResponse = ApiResponse<{ id: string }>;

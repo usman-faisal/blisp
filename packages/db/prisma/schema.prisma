@@ -67,6 +67,7 @@ model User {
   invitesCreated   ProjectInvite[] @relation("InviteCreator")
   invitesAccepted  ProjectInvite[] @relation("InviteJoiner")
   assignedTasks    Task[]          @relation("TaskAssignee")
+  taskComments     TaskComment[]
 
   @@index([name])
   @@index([email])
@@ -189,9 +190,28 @@ model Task {
   dailyPlan       DailyPlan? @relation(fields: [dailyPlanId], references: [id])
   resources       Resource[]
   assignee        User?      @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  comments        TaskComment[]
 
   @@index([assigneeId])
   @@map("tasks")
+}
+
+model TaskComment {
+  id         String   @id @default(uuid()) @db.Uuid
+  taskId     String   @map("task_id") @db.Uuid
+  authorId   String   @map("author_id")
+  // Snapshot, same reasoning as the invite and assignee names: a comment row
+  // reads on its own, and the byline stays what it was when written.
+  authorName String   @map("author_name")
+  body       String   @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@map("task_comments")
 }
 
 model Resource {

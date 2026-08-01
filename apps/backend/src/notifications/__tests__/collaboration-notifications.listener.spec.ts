@@ -4,6 +4,7 @@ import { CollaborationNotificationsListener } from '../collaboration-notificatio
 import {
   MemberJoinedEvent,
   TaskAssignedEvent,
+  TaskCommentedEvent,
   TaskCompletedEvent,
 } from '../events/collaboration.events';
 
@@ -132,6 +133,78 @@ describe('CollaborationNotificationsListener', () => {
       );
 
       expect(mockPrisma.notification.createMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('task commented', () => {
+    const commentEvent = (overrides: Partial<TaskCommentedEvent> = {}) =>
+      new TaskCommentedEvent(
+        'task-1',
+        'Wire up auth',
+        PROJECT,
+        'Roadmap',
+        (overrides as any).actorId ?? ALICE,
+        'Alice',
+        (overrides as any).projectOwnerId ?? BOB,
+        (overrides as any).mentionedUserIds ?? [],
+        'Looks good to me',
+      );
+
+    it('notifies the project owner of every comment', async () => {
+      await listener.onTaskCommented(commentEvent());
+
+      expect(mockPrisma.notification.createMany).toHaveBeenCalledWith({
+        data: [expect.objectContaining({ userId: BOB, title: 'New comment' })],
+      });
+    });
+
+    it('notifies a mentioned member', async () => {
+      await listener.onTaskCommented(commentEvent({ mentionedUserIds: [CAROL] } as any));
+
+      const calls = mockPrisma.notification.createMany.mock.calls;
+      const mention = calls.find((c: any) => c[0].data[0].title === 'You were mentioned');
+
+      expect(mention[0].data[0].userId).toBe(CAROL);
+    });
+
+    // Being told twice about one comment reads as a bug.
+    it('sends a mentioned owner only the mention, not both', async () => {
+      await listener.onTaskCommented(commentEvent({ mentionedUserIds: [BOB] } as any));
+
+      const titles = mockPrisma.notification.createMany.mock.calls.map(
+        (c: any) => c[0].data[0].title,
+      );
+
+      expect(titles).toEqual(['You were mentioned']);
+      expect(titles).not.toContain('New comment');
+    });
+
+    it('does not notify the author when they own the project', async () => {
+      await listener.onTaskCommented(
+        commentEvent({ actorId: ALICE, projectOwnerId: ALICE } as any),
+      );
+
+      expect(mockPrisma.notification.createMany).not.toHaveBeenCalled();
+    });
+
+    it('ignores a self-mention', async () => {
+      await listener.onTaskCommented(
+        commentEvent({ actorId: ALICE, mentionedUserIds: [ALICE], projectOwnerId: ALICE } as any),
+      );
+
+      expect(mockPrisma.notification.createMany).not.toHaveBeenCalled();
+    });
+
+    it('notifies both a mentioned member and the owner separately', async () => {
+      await listener.onTaskCommented(commentEvent({ mentionedUserIds: [CAROL] } as any));
+
+      const titles = mockPrisma.notification.createMany.mock.calls.map(
+        (c: any) => c[0].data[0].title,
+      );
+
+      expect(titles).toEqual(
+        expect.arrayContaining(['You were mentioned', 'New comment']),
+      );
     });
   });
 
