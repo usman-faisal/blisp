@@ -3,9 +3,10 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 import { User } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
-import { GetTaskDetailResponse, UpdateTaskStatusResponse } from '@repo/types';
+import { AssignTaskResponse, GetTaskDetailResponse, UpdateTaskStatusResponse } from '@repo/types';
 import { TasksService } from './tasks.service';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
+import { AssignTaskDto } from './dto/assign-task.dto';
 
 @ApiTags('tasks')
 @ApiBearerAuth('JWT-auth')
@@ -28,6 +29,24 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<GetTaskDetailResponse> {
     return this.tasksService.getTaskById(user.id, id);
+  }
+
+  @Patch(':id/assign')
+  @ApiOperation({
+    summary: 'Assign or unassign a task',
+    description:
+      'Assigns the task to a project member. Pass assigneeId: null to unassign. Any member may reassign.',
+  })
+  @ApiParam({ name: 'id', description: 'Task UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Task assignment updated.' })
+  @ApiResponse({ status: 400, description: 'Assignee is not a member of the project.' })
+  @ApiResponse({ status: 404, description: 'Task not found or you are not a member.' })
+  async assignTask(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssignTaskDto,
+  ): Promise<AssignTaskResponse> {
+    return this.tasksService.assignTask(user.id, id, dto);
   }
 
   @Patch(':id/status')

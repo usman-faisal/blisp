@@ -28,8 +28,16 @@ describe('InvitesService', () => {
     user: {
       findUnique: jest.fn(),
     },
-    // Runs the callback against the same mocks, so transaction bodies are tested.
-    $transaction: jest.fn((cb: any) => cb(mockPrisma)),
+    // Removing a member unassigns their tasks back to the shared backlog.
+    task: {
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    // Prisma's $transaction takes either a callback or an array of promises.
+    // Support both: run the callback against the same mocks so transaction
+    // bodies are genuinely exercised, and await arrays as-is.
+    $transaction: jest.fn((arg: any) =>
+      Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma),
+    ),
   };
 
   const mockAccess = {
@@ -64,7 +72,10 @@ describe('InvitesService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((cb: any) => cb(mockPrisma));
+    mockPrisma.$transaction.mockImplementation((arg: any) =>
+      Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma),
+    );
+    mockPrisma.task.updateMany.mockResolvedValue({ count: 0 });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

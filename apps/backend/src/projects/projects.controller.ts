@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags }
 import { User, ProjectStatus } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
-import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectDetailResponse, GetProjectStatsResponse, GetProjectPipelineResponse, UpdateProjectResponse } from '@repo/types';
+import { ActivateProjectResponse, ArchiveProjectResponse, GetProjectsResponse, GetProjectDetailResponse, GetProjectStatsResponse, GetProjectPipelineResponse, GetProjectProgressResponse, UpdateProjectResponse } from '@repo/types';
 import { ProjectsService } from './projects.service';
 import { PipelineEventsService } from 'src/pipeline_events/pipeline-events.service';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -81,6 +81,22 @@ export class ProjectsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<GetProjectPipelineResponse> {
     return this.pipelineEventsService.getProjectPipeline(user.id, id);
+  }
+
+  @Get(':id/progress')
+  @ApiOperation({
+    summary: 'Get project progress',
+    description:
+      'Overall completion plus a per-member breakdown and the unassigned backlog count.',
+  })
+  @ApiParam({ name: 'id', description: 'Project UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Progress retrieved successfully.' })
+  @ApiResponse({ status: 404, description: 'Project not found or you are not a member.' })
+  async getProjectProgress(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<GetProjectProgressResponse> {
+    return this.projectsService.getProjectProgress(user.id, id);
   }
 
   @Get('stats')

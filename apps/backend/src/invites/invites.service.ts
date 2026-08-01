@@ -308,9 +308,22 @@ export class InvitesService {
       throw new NotFoundException('That user is not a member of this project.');
     }
 
-    await this.prisma.projectMember.delete({ where: { id: membership.id } });
+    // Unassign their tasks in the same transaction as the removal, so the work
+    // returns to the shared backlog rather than being orphaned on a non-member.
+    // The FK is ON DELETE SetNull, but that only fires if the *user* is deleted
+    // — losing project membership does not touch it.
+    const [, unassigned] = await this.prisma.$transaction([
+      this.prisma.projectMember.delete({ where: { id: membership.id } }),
+      this.prisma.task.updateMany({
+        where: { projectId, assigneeId: targetUserId },
+        data: { assigneeId: null, assigneeName: null },
+      }),
+    ]);
 
-    this.logger.log(`User ${targetUserId} removed from project ${projectId} by ${requesterId}.`);
+    this.logger.log(
+      `User ${targetUserId} removed from project ${projectId} by ${requesterId}. ` +
+        `${unassigned.count} task(s) returned to the backlog.`,
+    );
 
     return {
       data: { userId: targetUserId },

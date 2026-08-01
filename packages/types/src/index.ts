@@ -136,6 +136,9 @@ export interface TaskDetailResponsePayload {
   status: Task['status'];
   project: TaskDetailProjectPayload;
   resources: ResourceResponse[];
+  /** Null when nobody has claimed the task. */
+  assigneeId: string | null;
+  assigneeName: string | null;
 }
 
 export type GetTaskDetailResponse = ApiResponse<TaskDetailResponsePayload>;
@@ -248,3 +251,38 @@ export interface AcceptInviteResponsePayload {
 export type AcceptInviteResponse = ApiResponse<AcceptInviteResponsePayload>;
 
 export type RemoveMemberResponse = ApiResponse<{ userId: string }>;
+
+export interface AssignTaskResponsePayload {
+  taskId: Task['id'];
+  taskTitle: Task['title'];
+  assigneeId: string | null;
+  assigneeName: string | null;
+}
+
+export type AssignTaskResponse = ApiResponse<AssignTaskResponsePayload>;
+
+export interface MemberProgress {
+  userId: string;
+  name: User['name'];
+  role: ProjectMember['role'];
+  assigned: number;
+  done: number;
+  inProgress: number;
+  todo: number;
+}
+
+export interface ProjectProgressPayload {
+  overall: {
+    total: number;
+    done: number;
+    inProgress: number;
+    todo: number;
+    /** 0-100, rounded. Convenience for progress bars. */
+    percentComplete: number;
+  };
+  perMember: MemberProgress[];
+  /** Tasks nobody has claimed — the team's shared backlog. */
+  unassigned: number;
+}
+
+export type GetProjectProgressResponse = ApiResponse<ProjectProgressPayload>;

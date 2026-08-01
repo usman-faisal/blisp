@@ -66,28 +66,43 @@ export class DailyPlanCronService {
       return;
     }
 
+    // Which tasks belong in this user's plan on a shared project.
+    //
+    // Membership alone is not enough: with three members on one project, every
+    // member would receive an identical plan containing each other's tasks. So
+    // a task counts as theirs when they are the assignee, or when nobody has
+    // claimed it and they created the project — unassigned work stays with the
+    // owner rather than being duplicated across the team.
+    const ownedByUser = {
+      project: {
+        status: ProjectStatus.ACTIVE,
+        members: { some: { userId } },
+      },
+      OR: [
+        { assigneeId: userId },
+        { assigneeId: null, project: { userId } },
+      ],
+    };
+
     // Roll over incomplete tasks from previous plans
     await this.prisma.task.updateMany({
       where: {
         status: TaskStatus.TODO,
         dailyPlanId: { not: null },
         plannedFor: { lt: today },
-        project: { userId, status: ProjectStatus.ACTIVE },
+        ...ownedByUser,
       },
       data: {
         dailyPlanId: null,
         plannedFor: null,
       },
     });
-    
+
     const backlogTasks = await this.prisma.task.findMany({
       where: {
         dailyPlanId: null,
         status: TaskStatus.TODO,
-        project: {
-          userId,
-          status: ProjectStatus.ACTIVE,
-        },
+        ...ownedByUser,
       },
       take: MAX_TASKS_PER_DAY,
       orderBy: { createdAt: 'asc' },
