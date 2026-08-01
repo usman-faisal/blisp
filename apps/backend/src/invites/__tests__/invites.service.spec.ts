@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ProjectRole } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectAccessService } from 'src/projects/project-access.service';
@@ -82,6 +83,9 @@ describe('InvitesService', () => {
         InvitesService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ProjectAccessService, useValue: mockAccess },
+        // Events fire after the transaction commits; the listener is tested
+        // separately, so a spy is enough here.
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 
