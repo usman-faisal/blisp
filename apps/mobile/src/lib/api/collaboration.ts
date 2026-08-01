@@ -3,10 +3,14 @@ import type {
   AcceptInviteResponse,
   AssignTaskResponse,
   CreateInviteResponse,
+  CreateTaskCommentResponse,
+  DeleteTaskCommentResponse,
   GetInvitePreviewResponse,
   GetProjectMembersResponse,
   GetProjectProgressResponse,
+  GetTaskCommentsResponse,
   RemoveMemberResponse,
+  UpdateTaskCommentResponse,
 } from '@repo/types';
 
 /**
@@ -76,6 +80,55 @@ export const assignTask = async (
   const response = await apiClient.patch<AssignTaskResponse>(`/tasks/${taskId}/assign`, {
     assigneeId,
   });
+  return response.data;
+};
+
+/**
+ * A task's comments, oldest first.
+ * GET /tasks/:id/comments
+ */
+export const getTaskComments = async (taskId: string): Promise<GetTaskCommentsResponse> => {
+  const response = await apiClient.get<GetTaskCommentsResponse>(`/tasks/${taskId}/comments`);
+  return response.data;
+};
+
+/**
+ * Comment on a task. Mentioning a member with @their name notifies them.
+ * POST /tasks/:id/comments
+ */
+export const createTaskComment = async (
+  taskId: string,
+  body: string,
+): Promise<CreateTaskCommentResponse> => {
+  const response = await apiClient.post<CreateTaskCommentResponse>(
+    `/tasks/${taskId}/comments`,
+    { body },
+  );
+  return response.data;
+};
+
+/**
+ * Edit your own comment. Author only.
+ * PATCH /comments/:id
+ */
+export const updateTaskComment = async (
+  commentId: string,
+  body: string,
+): Promise<UpdateTaskCommentResponse> => {
+  const response = await apiClient.patch<UpdateTaskCommentResponse>(`/comments/${commentId}`, {
+    body,
+  });
+  return response.data;
+};
+
+/**
+ * Delete a comment — the author, or the project owner moderating.
+ * DELETE /comments/:id
+ */
+export const deleteTaskComment = async (
+  commentId: string,
+): Promise<DeleteTaskCommentResponse> => {
+  const response = await apiClient.delete<DeleteTaskCommentResponse>(`/comments/${commentId}`);
   return response.data;
 };
 

@@ -2,10 +2,13 @@ import { Container } from '@/components/ui/Container';
 import Text from '@/components/ui/Text';
 import { useTaskDetail } from '@/hooks/useTaskDetail';
 import { useProjectMembers } from '@/hooks/useProjectMembers';
+import { useTaskComments } from '@/hooks/useTaskComments';
 import { AssigneePicker } from '@/components/ui/AssigneePicker';
+import { CommentComposer, CommentThread } from '@/components/ui/CommentThread';
 import { MemberAvatar } from '@/components/ui/MemberAvatar';
 import { updateTaskStatus } from '@/lib/api/tasks';
-import { assignTask } from '@/lib/api/collaboration';
+import { assignTask, createTaskComment, deleteTaskComment } from '@/lib/api/collaboration';
+import type { TaskCommentResponse } from '@repo/types';
 import { archiveProject } from '@/lib/api/projects';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -16,10 +19,13 @@ import {
   Pressable,
   ActivityIndicator,
   Animated,
+  KeyboardAvoidingView,
   Linking,
   Alert,
+  Platform,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /* ------------------------------------------------------------------ */
 /*  Status helpers                                                     */
@@ -176,12 +182,31 @@ export default function TaskDetailScreen() {
   const { data: task, isLoading, mutate } = useTaskDetail(id);
 
   const { data: members } = useProjectMembers(task?.project.id ?? '');
+  const {
+    data: comments,
+    setData: setComments,
+    isLoading: isLoadingComments,
+    mutate: mutateComments,
+  } = useTaskComments(id);
+
+  // The roster already marks the requester, so the current user comes from
+  // there rather than pulling in Clerk for one field.
+  const self = members.find((member) => member.isSelf);
+  const canModerate = self?.role === 'OWNER';
 
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // Measured, not guessed: KeyboardAvoidingView needs the distance from the top
+  // of the screen to the top of this view, and a wrong number leaves a gap or
+  // still hides the input. The safe-area inset counts, since Container applies
+  // it above the header.
+  const insets = useSafeAreaInsets();
+  const [headerBarHeight, setHeaderBarHeight] = useState(0);
+  const headerHeight = headerBarHeight + insets.top;
 
   // Optimistic assignee, mirroring the status handling below. `undefined` means
   // "no pending change" — null is a real value here, meaning unassigned.
@@ -259,6 +284,64 @@ export default function TaskDetailScreen() {
     [task, currentStatus, mutate],
   );
 
+  /* --- Comments ------------------------------------------------------ */
+  const handleAddComment = useCallback(
+    async (body: string) => {
+      if (!task) return;
+
+      // Stand-in until the server's row arrives. The id is temporary and never
+      // sent anywhere — it only keys the list.
+      const pending: TaskCommentResponse = {
+        id: `pending-${Date.now()}`,
+        body,
+        authorId: self?.userId ?? '',
+        authorName: self?.name ?? 'You',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isOwn: true,
+        mentionedUserIds: [],
+      };
+
+      setComments((current) => [...current, pending]);
+      try {
+        const response = await createTaskComment(task.id, body);
+        // Swap the stand-in for the real row rather than refetching the thread:
+        // the server resolved the mentions, and its id is the one delete needs.
+        setComments((current) =>
+          current.map((comment) => (comment.id === pending.id ? response.data : comment)),
+        );
+      } catch (error: any) {
+        console.error('[TaskDetail] Comment error:', error);
+        setComments((current) => current.filter((comment) => comment.id !== pending.id));
+        Alert.alert(
+          'Could not post',
+          error?.response?.data?.message ?? 'Something went wrong. Please try again.',
+        );
+        // Rethrow so the composer restores the text the user typed.
+        throw error;
+      }
+    },
+    [task, self, setComments],
+  );
+
+  const handleDeleteComment = useCallback(
+    async (commentId: string) => {
+      const previous = comments;
+      setComments((current) => current.filter((comment) => comment.id !== commentId));
+      try {
+        await deleteTaskComment(commentId);
+      } catch (error: any) {
+        console.error('[TaskDetail] Comment delete error:', error);
+        setComments(previous); // revert
+        Alert.alert(
+          'Could not delete',
+          error?.response?.data?.message ?? 'Something went wrong. Please try again.',
+        );
+      }
+    },
+    [comments, setComments],
+  );
+
   /* --- Archive project ---------------------------------------------- */
   const handleArchiveProject = useCallback(() => {
     if (!task) return;
@@ -291,18 +374,21 @@ export default function TaskDetailScreen() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([mutate()]);
+      await Promise.all([mutate(), mutateComments()]);
     } catch (error) {
       console.error('[TaskDetailScreen] Refresh error:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [mutate]);
+  }, [mutate, mutateComments]);
 
   return (
     <Container className="bg-core-background">
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <View className="flex-row items-center justify-between px-5 pt-4 pb-2">
+      <View
+        onLayout={(event) => setHeaderBarHeight(event.nativeEvent.layout.height)}
+        className="flex-row items-center justify-between px-5 pt-4 pb-2"
+      >
         <Pressable
           onPress={() => router.back()}
           hitSlop={12}
@@ -332,117 +418,145 @@ export default function TaskDetailScreen() {
 
       {/* ── Content ─────────────────────────────────────────────────── */}
       {task && (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 60, paddingHorizontal: 20 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#E8612A" />}
+        // Lifts the pinned composer above the keyboard. Both platforms need a
+        // behavior — leaving Android undefined disables avoidance entirely, and
+        // the app sets no softwareKeyboardLayoutMode to fall back on.
+        //
+        // The offset is the header's measured height rather than a guess: this
+        // view starts below the header, so without it the composer is pushed up
+        // by that much too far.
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={headerHeight}
+          style={{ flex: 1 }}
         >
-          {/* Task title */}
-          <Text className="mt-2 font-heading text-2xl leading-tight text-core-text-primary">
-            {task.title}
-          </Text>
-
-          {/* Project badge */}
-          <View className="mt-3 flex-row items-center gap-x-2">
-            <View className="h-5 w-5 items-center justify-center rounded bg-brand-flax/20">
-              <Ionicons name="folder-outline" size={12} color="#C9A84C" />
-            </View>
-            <Text className="text-xs font-medium text-core-text-secondary">
-              {task.project.title}
-            </Text>
-          </View>
-
-          {/* ── Assignee ────────────────────────────────────────────── */}
-          <View className="mt-6">
-            <Text className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-core-text-disabled">
-              Assigned to
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            // Without this, the first tap while typing only dismisses the
+            // keyboard, so buttons need tapping twice.
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: 20 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#E8612A" />}
+          >
+            {/* Task title */}
+            <Text className="mt-2 font-heading text-2xl leading-tight text-core-text-primary">
+              {task.title}
             </Text>
 
-            <Pressable
-              onPress={() => setIsPickerOpen(true)}
-              disabled={isAssigning}
-              className="flex-row items-center gap-3 rounded-2xl bg-core-surface p-3 active:opacity-70">
-              {assigneeName ? (
-                <MemberAvatar name={assigneeName} size={36} />
-              ) : (
-                <View className="h-9 w-9 items-center justify-center rounded-full bg-core-surface-elevated">
-                  <Ionicons name="person-outline" size={18} color="#6B6560" />
-                </View>
-              )}
-
-              <View className="flex-1">
-                <Text
-                  className={`text-sm font-semibold ${
-                    assigneeName ? 'text-core-text-primary' : 'text-core-text-secondary'
-                  }`}>
-                  {assigneeName ?? 'Unassigned'}
-                </Text>
-                <Text className="text-xs text-core-text-disabled">
-                  {assigneeName ? 'Tap to reassign' : 'Tap to claim this task'}
-                </Text>
+            {/* Project badge */}
+            <View className="mt-3 flex-row items-center gap-x-2">
+              <View className="h-5 w-5 items-center justify-center rounded bg-brand-flax/20">
+                <Ionicons name="folder-outline" size={12} color="#C9A84C" />
               </View>
-
-              {isAssigning ? (
-                <ActivityIndicator size="small" color="#E8612A" />
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color="#B0AAA3" />
-              )}
-            </Pressable>
-          </View>
-
-          {/* ── Status selector ─────────────────────────────────────── */}
-          <View className="mt-6">
-            <Text className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-core-text-disabled">
-              Status
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {(Object.keys(STATUS_CONFIG) as TaskStatusKey[]).map((key) => (
-                <StatusPill
-                  key={key}
-                  statusKey={key}
-                  isActive={currentStatus === key}
-                  onPress={() => handleStatusChange(key)}
-                  disabled={isUpdatingStatus}
-                />
-              ))}
-            </View>
-          </View>
-
-          {/* ── Resources ───────────────────────────────────────────── */}
-          <View className="mt-8">
-            <View className="mb-2.5 flex-row items-center gap-x-2">
-              <Ionicons name="sparkles-outline" size={14} color="#C9A84C" />
-              <Text className="text-xs font-semibold uppercase tracking-wide text-brand-flax">
-                Resources
+              <Text className="text-xs font-medium text-core-text-secondary">
+                {task.project.title}
               </Text>
-              <View className="rounded-full bg-brand-flax/15 px-2 py-0.5">
-                <Text className="text-xs font-semibold text-brand-flax">
-                  {task.resources.length}
-                </Text>
-              </View>
             </View>
 
-            {task.resources.length > 0 ? (
-              <View className="gap-3">
-                {task.resources.map((resource) => (
-                  <ResourceCard
-                    key={resource.id}
-                    title={resource.title}
-                    summary={resource.summary}
-                    url={resource.url}
+            {/* ── Assignee ────────────────────────────────────────────── */}
+            <View className="mt-6">
+              <Text className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-core-text-disabled">
+                Assigned to
+              </Text>
+
+              <Pressable
+                onPress={() => setIsPickerOpen(true)}
+                disabled={isAssigning}
+                className="flex-row items-center gap-3 rounded-2xl bg-core-surface p-3 active:opacity-70">
+                {assigneeName ? (
+                  <MemberAvatar name={assigneeName} size={36} />
+                ) : (
+                  <View className="h-9 w-9 items-center justify-center rounded-full bg-core-surface-elevated">
+                    <Ionicons name="person-outline" size={18} color="#6B6560" />
+                  </View>
+                )}
+
+                <View className="flex-1">
+                  <Text
+                    className={`text-sm font-semibold ${
+                      assigneeName ? 'text-core-text-primary' : 'text-core-text-secondary'
+                    }`}>
+                    {assigneeName ?? 'Unassigned'}
+                  </Text>
+                  <Text className="text-xs text-core-text-disabled">
+                    {assigneeName ? 'Tap to reassign' : 'Tap to claim this task'}
+                  </Text>
+                </View>
+
+                {isAssigning ? (
+                  <ActivityIndicator size="small" color="#E8612A" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color="#B0AAA3" />
+                )}
+              </Pressable>
+            </View>
+
+            {/* ── Status selector ─────────────────────────────────────── */}
+            <View className="mt-6">
+              <Text className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-core-text-disabled">
+                Status
+              </Text>
+              <View className="flex-row flex-wrap gap-2">
+                {(Object.keys(STATUS_CONFIG) as TaskStatusKey[]).map((key) => (
+                  <StatusPill
+                    key={key}
+                    statusKey={key}
+                    isActive={currentStatus === key}
+                    onPress={() => handleStatusChange(key)}
+                    disabled={isUpdatingStatus}
                   />
                 ))}
               </View>
-            ) : (
-              <View className="items-center rounded-2xl bg-core-surface py-8 px-6">
-                <Ionicons name="hourglass-outline" size={28} color="#B0AAA3" />
-                <Text className="mt-2 text-center text-sm text-core-text-disabled">
-                  Resources will appear here once the AI finishes researching this task.
+            </View>
+
+            {/* ── Resources ───────────────────────────────────────────── */}
+            <View className="mt-8">
+              <View className="mb-2.5 flex-row items-center gap-x-2">
+                <Ionicons name="sparkles-outline" size={14} color="#C9A84C" />
+                <Text className="text-xs font-semibold uppercase tracking-wide text-brand-flax">
+                  Resources
                 </Text>
+                <View className="rounded-full bg-brand-flax/15 px-2 py-0.5">
+                  <Text className="text-xs font-semibold text-brand-flax">
+                    {task.resources.length}
+                  </Text>
+                </View>
               </View>
-            )}
-          </View>
-        </ScrollView>
+
+              {task.resources.length > 0 ? (
+                <View className="gap-3">
+                  {task.resources.map((resource) => (
+                    <ResourceCard
+                      key={resource.id}
+                      title={resource.title}
+                      summary={resource.summary}
+                      url={resource.url}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <View className="items-center rounded-2xl bg-core-surface py-8 px-6">
+                  <Ionicons name="hourglass-outline" size={28} color="#B0AAA3" />
+                  <Text className="mt-2 text-center text-sm text-core-text-disabled">
+                    Resources will appear here once the AI finishes researching this task.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* ── Discussion ──────────────────────────────────────────── */}
+            <CommentThread
+              comments={comments}
+              members={members}
+              isLoading={isLoadingComments}
+              canModerate={canModerate}
+              onDelete={handleDeleteComment}
+            />
+          </ScrollView>
+
+          {/* Pinned below the scroll view, so the keyboard never covers it. */}
+          <CommentComposer onSubmit={handleAddComment} bottomInset={insets.bottom} />
+        </KeyboardAvoidingView>
       )}
 
       <AssigneePicker
