@@ -15,6 +15,8 @@ import { DailyPlanModule } from './daily_plan/daily-plan.module';
 import { ProjectsModule } from './projects/projects.module';
 import { TasksModule } from './tasks/tasks.module';
 import { PipelineEventsModule } from './pipeline_events/pipeline-events.module';
+import { InvitesModule } from './invites/invites.module';
+import { DevTokensModule } from './dev/dev-tokens.module';
 
 @Module({
   imports: [
@@ -49,6 +51,10 @@ import { PipelineEventsModule } from './pipeline_events/pipeline-events.module';
     ProjectsModule,
     TasksModule,
     PipelineEventsModule,
+    InvitesModule,
+    // Token-minting helper for local testing. Never registered in production —
+    // it can impersonate any user. The controller also re-checks at runtime.
+    ...(process.env.NODE_ENV === 'production' ? [] : [DevTokensModule]),
   ],
   controllers: [AppController],
   providers: [AppService],

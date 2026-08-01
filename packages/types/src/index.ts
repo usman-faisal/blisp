@@ -7,6 +7,8 @@ import type {
   User,
   PipelineStage,
   ProjectEvent,
+  ProjectMember,
+  ProjectInvite,
 } from '@repo/db';
 
 export interface ApiResponse<T = void> {
@@ -198,3 +200,51 @@ export interface ProjectDetailResponsePayload {
 }
 
 export type GetProjectDetailResponse = ApiResponse<ProjectDetailResponsePayload>;
+
+/* ── Collaboration ─────────────────────────────────────────────────────── */
+
+export interface ProjectMemberResponse {
+  userId: ProjectMember['userId'];
+  name: User['name'];
+  email: User['email'];
+  role: ProjectMember['role'];
+  joinedAt: string;
+  /** True for the member making the request, so the UI can label "you". */
+  isSelf: boolean;
+}
+
+export type GetProjectMembersResponse = ApiResponse<ProjectMemberResponse[]>;
+
+export interface CreateInviteResponsePayload {
+  code: ProjectInvite['code'];
+  expiresAt: string;
+  /** Deep link for sharing: blisp://invite/<code> */
+  shareUrl: string;
+}
+
+export type CreateInviteResponse = ApiResponse<CreateInviteResponsePayload>;
+
+/** Preview shown before joining, so a user knows what they are accepting. */
+export interface InvitePreviewPayload {
+  code: ProjectInvite['code'];
+  projectTitle: Project['title'];
+  projectDescription: Project['description'];
+  memberCount: number;
+  invitedBy: User['name'];
+  /** True when the requester already belongs — the UI can skip the join step. */
+  alreadyMember: boolean;
+}
+
+export type GetInvitePreviewResponse = ApiResponse<InvitePreviewPayload>;
+
+export interface AcceptInviteResponsePayload {
+  projectId: Project['id'];
+  projectTitle: Project['title'];
+  role: ProjectMember['role'];
+  /** Who issued the invite, so the joiner sees a name rather than an id. */
+  invitedBy: User['name'];
+}
+
+export type AcceptInviteResponse = ApiResponse<AcceptInviteResponsePayload>;
+
+export type RemoveMemberResponse = ApiResponse<{ userId: string }>;
