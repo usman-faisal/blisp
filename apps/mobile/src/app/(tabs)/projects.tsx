@@ -176,7 +176,18 @@ export default function ProjectsScreen() {
             Projects
           </Text>
         </View>
-        <Text className="mt-1 font-heading text-3xl text-core-text-primary">My Projects</Text>
+        <View className="mt-1 flex-row items-center justify-between">
+          <Text className="font-heading text-3xl text-core-text-primary">My Projects</Text>
+
+          <Pressable
+            onPress={() => router.push('/invite')}
+            hitSlop={12}
+            className="flex-row items-center gap-1.5 rounded-full bg-core-surface px-3 py-2 active:opacity-70">
+            <Ionicons name="enter-outline" size={16} color="#E8612A" />
+            <Text className="text-xs font-semibold text-brand-ember">Join</Text>
+          </Pressable>
+        </View>
+
         <Text className="mt-1 text-sm text-core-text-secondary">
           Active projects you're working on.
         </Text>

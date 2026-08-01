@@ -1,6 +1,8 @@
 import { Container } from '@/components/ui/Container';
 import Text from '@/components/ui/Text';
 import { useProjectDetail } from '@/hooks/useProjectDetail';
+import { useProjectMembers } from '@/hooks/useProjectMembers';
+import { MemberAvatarStack } from '@/components/ui/MemberAvatar';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useCallback } from 'react';
@@ -150,6 +152,7 @@ export default function ProjectRoadmapScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: project, isLoading, mutate } = useProjectDetail(id);
+  const { data: members } = useProjectMembers(id);
   const [refreshing, setRefreshing] = useState(false);
   const [completedExpanded, setCompletedExpanded] = useState(false);
 
@@ -181,6 +184,18 @@ export default function ProjectRoadmapScreen() {
           className="h-10 w-10 items-center justify-center rounded-full bg-core-surface active:opacity-70"
         >
           <Ionicons name="arrow-back" size={20} color="#1A1714" />
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push(`/project/members?projectId=${id}`)}
+          hitSlop={12}
+          className="flex-row items-center gap-2 rounded-full bg-core-surface px-3 py-2 active:opacity-70"
+        >
+          {members.length > 0 ? (
+            <MemberAvatarStack names={members.map(m => m.name)} size={24} />
+          ) : (
+            <Ionicons name="people-outline" size={18} color="#1A1714" />
+          )}
         </Pressable>
       </View>
 
