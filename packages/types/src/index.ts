@@ -9,12 +9,28 @@ import type {
   ProjectEvent,
   ProjectMember,
   ProjectInvite,
+  Notification,
+  NotificationType,
 } from '@repo/db';
 
 export interface ApiResponse<T = void> {
   data: T;
   message: string;
   success: boolean;
+}
+
+/**
+ * Shape returned by every paged endpoint. Defined here rather than in the
+ * backend so both sides share one definition; `common/types/type.ts` re-exports
+ * it, which keeps the existing `src/common/types/type` imports working.
+ */
+export interface PaginationInfo {
+  totalCount: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
 }
 
 export interface TaskResponse {
@@ -308,3 +324,37 @@ export type GetTaskCommentsResponse = ApiResponse<TaskCommentResponse[]>;
 export type CreateTaskCommentResponse = ApiResponse<TaskCommentResponse>;
 export type UpdateTaskCommentResponse = ApiResponse<TaskCommentResponse>;
 export type DeleteTaskCommentResponse = ApiResponse<{ id: string }>;
+
+/* ── Notifications ─────────────────────────────────────────────────────── */
+
+export interface NotificationResponse {
+  id: Notification['id'];
+  title: Notification['title'];
+  message: Notification['message'];
+  /** In-app route to open on tap, e.g. /project/:id or /task/:id. */
+  url: Notification['url'];
+  type: NotificationType;
+  /** Null while unread; the timestamp it was read otherwise. */
+  readAt: string | null;
+  /** Set only on PROJECT_INVITE rows, which carry accept/decline. */
+  inviteId: Notification['inviteId'];
+  createdAt: string;
+}
+
+export interface NotificationListPayload {
+  notifications: NotificationResponse[];
+  pagination: PaginationInfo;
+  /** Badge total across all rows — independent of paging and filters. */
+  unreadCount: number;
+}
+
+export type GetNotificationsResponse = ApiResponse<NotificationListPayload>;
+export type MarkNotificationReadResponse = ApiResponse<{
+  id: string;
+  unreadCount: number;
+}>;
+export type MarkAllNotificationsReadResponse = ApiResponse<{ updated: number }>;
+export type DismissNotificationResponse = ApiResponse<{
+  id: string;
+  unreadCount: number;
+}>;
