@@ -1,4 +1,4 @@
-import { Notification } from "@repo/db";
+import { Notification, NotificationType } from "@repo/db";
 import { PaginationInfo } from 'src/common/types/type';
 import { MinimalUserSelect } from 'src/users/queries';
 
@@ -9,6 +9,8 @@ export interface GetNotification extends Notification {
 export interface GetAllNotificationsResponse {
   notifications: GetNotification[];
   pagination: PaginationInfo;
+  /** Unread total for the badge — not the size of the current page or filter. */
+  unreadCount: number;
 }
 
 export enum NOTIFICATION_MEDIUM {
@@ -17,12 +19,12 @@ export enum NOTIFICATION_MEDIUM {
   IN_APP = 'inApp',
 }
 
-export type CreateNotificationPayload = {
+/** What a producer hands NotificationsService.notify(). */
+export type NotifyPayload = {
   title: string;
-  message?: string;
+  message: string;
   url?: string;
-  priority?: number;
-  actorId?: string;
-  entityId?: string;
-  entityType?: string; // TODO: Implement enum for entity types
+  type?: NotificationType;
+  /** Set only for PROJECT_INVITE, so the row can carry accept/decline. */
+  inviteId?: string;
 };

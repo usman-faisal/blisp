@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotificationType } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { CollaborationNotificationsListener } from '../collaboration-notifications.listener';
+import { NotificationsService } from '../notifications.service';
 import {
   MemberJoinedEvent,
   TaskAssignedEvent,
@@ -31,11 +33,89 @@ describe('CollaborationNotificationsListener', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CollaborationNotificationsListener,
+        // The real service, so these specs still exercise the write path that
+        // moved out of the listener rather than a stub of it.
+        NotificationsService,
         { provide: PrismaService, useValue: mockPrisma },
       ],
     }).compile();
 
     listener = module.get(CollaborationNotificationsListener);
+  });
+
+  /**
+   * Kind used to be inferable only from the literal title string. These pin the
+   * enum instead, so a renamed title cannot silently change a row's type.
+   */
+  describe('notification types', () => {
+    const typeOfLastWrite = () => {
+      const calls = mockPrisma.notification.createMany.mock.calls;
+      return calls[calls.length - 1][0].data[0].type;
+    };
+
+    it('tags a join as MEMBER_JOINED', async () => {
+      mockPrisma.projectMember.findMany.mockResolvedValue([{ userId: ALICE }]);
+
+      await listener.onMemberJoined(
+        new MemberJoinedEvent(PROJECT, 'Shared roadmap', CAROL, 'Carol'),
+      );
+
+      expect(typeOfLastWrite()).toBe(NotificationType.MEMBER_JOINED);
+    });
+
+    it('tags an assignment as TASK_ASSIGNED', async () => {
+      await listener.onTaskAssigned(
+        new TaskAssignedEvent('task-1', 'Wire up auth', 'Roadmap', BOB, ALICE, 'Alice'),
+      );
+
+      expect(typeOfLastWrite()).toBe(NotificationType.TASK_ASSIGNED);
+    });
+
+    it('tags a mention as TASK_MENTIONED, distinct from a comment', async () => {
+      await listener.onTaskCommented(
+        new TaskCommentedEvent(
+          'task-1',
+          'Wire up auth',
+          PROJECT,
+          'Roadmap',
+          ALICE,
+          'Alice',
+          null,
+          [CAROL],
+          'Looks good',
+        ),
+      );
+
+      expect(typeOfLastWrite()).toBe(NotificationType.TASK_MENTIONED);
+    });
+
+    it('tags an owner comment as TASK_COMMENTED', async () => {
+      await listener.onTaskCommented(
+        new TaskCommentedEvent(
+          'task-1',
+          'Wire up auth',
+          PROJECT,
+          'Roadmap',
+          ALICE,
+          'Alice',
+          BOB,
+          [],
+          'Looks good',
+        ),
+      );
+
+      expect(typeOfLastWrite()).toBe(NotificationType.TASK_COMMENTED);
+    });
+
+    it('tags a completion as TASK_COMPLETED', async () => {
+      mockPrisma.projectMember.findMany.mockResolvedValue([{ userId: BOB }]);
+
+      await listener.onTaskCompleted(
+        new TaskCompletedEvent('task-1', 'Wire up auth', PROJECT, 'Roadmap', ALICE, 'Alice'),
+      );
+
+      expect(typeOfLastWrite()).toBe(NotificationType.TASK_COMPLETED);
+    });
   });
 
   describe('member joined', () => {

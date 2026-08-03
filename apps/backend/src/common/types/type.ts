@@ -6,14 +6,9 @@ export interface QueryParams {
   search?: string;
 }
 
-export interface PaginationInfo {
-  totalCount: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPrevPage: boolean;
-}
+// Single definition lives in @repo/types so the mobile client shares it.
+// Re-exported here so existing `src/common/types/type` importers are unaffected.
+export type { PaginationInfo } from '@repo/types';
 
 export interface MulterFile {
   fieldname: string;

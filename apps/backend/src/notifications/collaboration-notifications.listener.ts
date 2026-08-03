@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import { NotificationType } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
+import { NotificationsService } from './notifications.service';
 import {
   COLLABORATION_EVENTS,
   MemberJoinedEvent,
@@ -20,29 +22,21 @@ import {
 export class CollaborationNotificationsListener {
   private readonly logger = new Logger(CollaborationNotificationsListener.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /**
-   * Writes notifications and flips User.hasNotifications, which drives the
-   * unread badge. Writing the rows without the flag would leave the badge dark.
+   * Delegates to NotificationsService, which owns the write and the badge flag.
+   * This used to be implemented here, but invites are a second producer and
+   * cannot reach a private method on a listener.
    */
   private async notify(
     userIds: string[],
-    payload: { title: string; message: string; url?: string },
+    payload: { title: string; message: string; url?: string; type: NotificationType },
   ): Promise<void> {
-    if (userIds.length === 0) {
-      return;
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.notification.createMany({
-        data: userIds.map((userId) => ({ userId, ...payload })),
-      }),
-      this.prisma.user.updateMany({
-        where: { id: { in: userIds } },
-        data: { hasNotifications: true },
-      }),
-    ]);
+    await this.notifications.notify(userIds, payload);
   }
 
   /** Everyone already on the project, minus the person who acted. */
@@ -64,6 +58,7 @@ export class CollaborationNotificationsListener {
         title: 'New collaborator',
         message: `${event.joinerName} joined "${event.projectTitle}".`,
         url: `/project/${event.projectId}`,
+        type: NotificationType.MEMBER_JOINED,
       });
     } catch (error) {
       this.logger.error(`Failed to notify members of a join on ${event.projectId}.`, error);
@@ -82,6 +77,7 @@ export class CollaborationNotificationsListener {
         title: 'Task assigned to you',
         message: `${event.actorName} assigned you "${event.taskTitle}" in ${event.projectTitle}.`,
         url: `/task/${event.taskId}`,
+        type: NotificationType.TASK_ASSIGNED,
       });
     } catch (error) {
       this.logger.error(`Failed to notify assignee of task ${event.taskId}.`, error);
@@ -107,6 +103,7 @@ export class CollaborationNotificationsListener {
           title: 'You were mentioned',
           message: `${event.actorName} mentioned you on "${event.taskTitle}": ${event.excerpt}`,
           url: `/task/${event.taskId}`,
+          type: NotificationType.TASK_MENTIONED,
         });
       }
 
@@ -120,6 +117,7 @@ export class CollaborationNotificationsListener {
           title: 'New comment',
           message: `${event.actorName} commented on "${event.taskTitle}": ${event.excerpt}`,
           url: `/task/${event.taskId}`,
+          type: NotificationType.TASK_COMMENTED,
         });
       }
     } catch (error) {
@@ -138,6 +136,7 @@ export class CollaborationNotificationsListener {
         title: 'Task completed',
         message: `${event.actorName} completed "${event.taskTitle}" in ${event.projectTitle}.`,
         url: `/project/${event.projectId}`,
+        type: NotificationType.TASK_COMPLETED,
       });
     } catch (error) {
       this.logger.error(`Failed to notify members of completion on ${event.taskId}.`, error);

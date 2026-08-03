@@ -51,6 +51,20 @@ enum ProjectRole {
   MEMBER
 }
 
+// Discriminates a notification's kind so the client can render and act on it.
+// Before this existed, kind was only recoverable by string-matching the literal
+// title the listener wrote — fine for display, useless for behaviour.
+// GENERIC is the default so pre-existing rows migrate without a backfill.
+enum NotificationType {
+  GENERIC
+  MEMBER_JOINED
+  TASK_ASSIGNED
+  TASK_COMMENTED
+  TASK_MENTIONED
+  TASK_COMPLETED
+  PROJECT_INVITE
+}
+
 model User {
   id               String         @id @unique
   name             String
@@ -74,16 +88,31 @@ model User {
 }
 
 model Notification {
-  id        String   @id @unique @default(uuid()) @db.Uuid
-  userId    String   @db.Text
+  id        String           @id @unique @default(uuid()) @db.Uuid
+  userId    String           @db.Text
   title     String
   message   String?
   url       String?
-  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  type      NotificationType @default(GENERIC)
+  user      User             @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // Nullable timestamp rather than a `read` boolean: same storage, and it
+  // answers "when" for free. Null means unread, so existing rows need no
+  // backfill — they are correctly unread on arrival.
+  readAt    DateTime?        @map("read_at")
+
+  // A typed FK, not a generic entityId/entityType pair, specifically to get
+  // this cascade: revoking an invite removes the notification carrying its
+  // accept/decline buttons. A string column could not, and would leave a row
+  // whose action 404s.
+  inviteId  String?          @map("invite_id") @db.Uuid
+  invite    ProjectInvite?   @relation(fields: [inviteId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  // Drives the unread count, which is read on every notification-list load.
+  @@index([userId, readAt])
 }
 
 model BrainDump {
@@ -165,6 +194,10 @@ model ProjectInvite {
   // SetNull on the joiner so the invite's audit trail survives their removal.
   creator   User      @relation("InviteCreator", fields: [createdBy], references: [id], onDelete: Cascade)
   joiner    User?     @relation("InviteJoiner", fields: [usedBy], references: [id], onDelete: SetNull)
+
+  // Back-relation for the notification that carries this invite's actions.
+  // Cascade lives on the Notification side; see the note there.
+  notifications Notification[]
 
   @@index([projectId])
   @@map("project_invites")
