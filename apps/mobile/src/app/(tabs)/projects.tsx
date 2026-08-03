@@ -141,7 +141,7 @@ function EmptyState() {
 
 export default function ProjectsScreen() {
   const { data: projects, isLoading, mutate } = useActiveProjects();
-  const { translateY: headerTranslateY, opacity: headerOpacity, onScroll, headerHeight } = useCollapsibleHeader(110);
+  const { translateY: headerTranslateY, opacity: headerOpacity, onScroll, headerHeight, isCollapsed } = useCollapsibleHeader(110);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
@@ -168,6 +168,10 @@ export default function ProjectsScreen() {
         translateY={headerTranslateY}
         opacity={headerOpacity}
         height={headerHeight}
+        // The "Join" button below lives in this header. Once the header fades out
+        // it is still mounted and still hit-tested, so without this it keeps
+        // taking taps from where it is no longer visible.
+        collapsed={isCollapsed}
         style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}
       >
         <View className="flex-row items-center gap-x-2">
