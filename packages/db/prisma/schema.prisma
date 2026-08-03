@@ -51,6 +51,18 @@ enum ProjectRole {
   MEMBER
 }
 
+// Lifecycle of a targeted invite. The code flow has no use for it and stays
+// PENDING until claimed, where `usedAt` remains the authority.
+//
+// DECLINED is kept distinct from REVOKED so the inviter can tell "they said no"
+// from "I withdrew it" — and from an invite that simply expired unanswered.
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  REVOKED
+}
+
 // Discriminates a notification's kind so the client can render and act on it.
 // Before this existed, kind was only recoverable by string-matching the literal
 // title the listener wrote — fine for display, useless for behaviour.
@@ -80,6 +92,7 @@ model User {
   projectMembers   ProjectMember[]
   invitesCreated   ProjectInvite[] @relation("InviteCreator")
   invitesAccepted  ProjectInvite[] @relation("InviteJoiner")
+  invitesReceived  ProjectInvite[] @relation("InviteRecipient")
   assignedTasks    Task[]          @relation("TaskAssignee")
   taskComments     TaskComment[]
 
@@ -172,12 +185,27 @@ model ProjectMember {
 model ProjectInvite {
   id        String    @id @default(uuid()) @db.Uuid
   projectId String    @map("project_id") @db.Uuid
-  code      String    @unique @db.VarChar(12)
+
+  // Nullable since targeted invites carry no code: minting one anyway would
+  // create a second, unintended way into the project. Postgres permits many
+  // NULLs under a UNIQUE constraint, so no partial index is needed.
+  code      String?   @unique @db.VarChar(12)
+
   createdBy String    @map("created_by")
   expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
   usedBy    String?   @map("used_by")
   createdAt DateTime  @default(now()) @map("created_at")
+
+  // Targeted-invite fields. invitedUserId null = an open code invite.
+  //
+  // usedAt/usedBy overlap with status/respondedAt for targeted invites, and are
+  // set alongside them on accept. Unifying the two is deliberately not attempted
+  // here: the code flow is working and tested, and rewriting it would double the
+  // blast radius of this change.
+  status        InviteStatus @default(PENDING)
+  invitedUserId String?      @map("invited_user_id")
+  respondedAt   DateTime?    @map("responded_at")
 
   // Names captured at invite time. Denormalised on purpose: the relations below
   // give the current name, but these make an invite row readable on its own
@@ -195,11 +223,26 @@ model ProjectInvite {
   creator   User      @relation("InviteCreator", fields: [createdBy], references: [id], onDelete: Cascade)
   joiner    User?     @relation("InviteJoiner", fields: [usedBy], references: [id], onDelete: SetNull)
 
+  // The person a targeted invite is addressed to. Cascade: their invites are
+  // meaningless once the user is gone.
+  invitedUser User? @relation("InviteRecipient", fields: [invitedUserId], references: [id], onDelete: Cascade)
+
   // Back-relation for the notification that carries this invite's actions.
   // Cascade lives on the Notification side; see the note there.
   notifications Notification[]
 
+  // One invite row per person per project, enforced by the database rather than
+  // by a service check that could race. Postgres treats NULLs as distinct, so
+  // open code invites (invitedUserId = NULL) are unconstrained by this.
+  //
+  // Consequence, accepted deliberately: a declined invite occupies the slot, so
+  // re-inviting *updates that row* back to PENDING rather than inserting a
+  // second one. That loses the history of previous declines. At 2-3 members,
+  // "was this person invited before?" is not a question worth a table for.
+  @@unique([projectId, invitedUserId])
   @@index([projectId])
+  // Drives "my pending invites".
+  @@index([invitedUserId, status])
   @@map("project_invites")
 }
 

@@ -5,6 +5,8 @@ import { PrismaService } from 'src/common/services/prisma.service';
 import { NotificationsService } from './notifications.service';
 import {
   COLLABORATION_EVENTS,
+  InviteDeclinedEvent,
+  InviteReceivedEvent,
   MemberJoinedEvent,
   TaskAssignedEvent,
   TaskCommentedEvent,
@@ -34,7 +36,13 @@ export class CollaborationNotificationsListener {
    */
   private async notify(
     userIds: string[],
-    payload: { title: string; message: string; url?: string; type: NotificationType },
+    payload: {
+      title: string;
+      message: string;
+      url?: string;
+      type: NotificationType;
+      inviteId?: string;
+    },
   ): Promise<void> {
     await this.notifications.notify(userIds, payload);
   }
@@ -62,6 +70,47 @@ export class CollaborationNotificationsListener {
       });
     } catch (error) {
       this.logger.error(`Failed to notify members of a join on ${event.projectId}.`, error);
+    }
+  }
+
+  /**
+   * The one actionable notification in the system: it carries `inviteId`, so the
+   * client can render accept and decline on the row itself rather than sending
+   * the user off to find the invite.
+   *
+   * No `url`. Every other notification navigates somewhere; this one is answered
+   * in place. Pointing it at the project would be worse than useless — the
+   * recipient is not a member yet, so the screen would 404.
+   */
+  @OnEvent(COLLABORATION_EVENTS.INVITE_RECEIVED)
+  async onInviteReceived(event: InviteReceivedEvent): Promise<void> {
+    try {
+      await this.notify([event.invitedUserId], {
+        title: 'Project invitation',
+        message: `${event.inviterName} invited you to collaborate on "${event.projectTitle}".`,
+        type: NotificationType.PROJECT_INVITE,
+        inviteId: event.inviteId,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to notify ${event.invitedUserId} of invite ${event.inviteId}.`, error);
+    }
+  }
+
+  /**
+   * Only the sender hears about a decline, and only for a targeted invite —
+   * they asked a specific person, so the silence would otherwise be ambiguous.
+   */
+  @OnEvent(COLLABORATION_EVENTS.INVITE_DECLINED)
+  async onInviteDeclined(event: InviteDeclinedEvent): Promise<void> {
+    try {
+      await this.notify([event.inviterId], {
+        title: 'Invitation declined',
+        message: `${event.declinerName} declined your invitation to "${event.projectTitle}".`,
+        url: `/project/${event.projectId}`,
+        type: NotificationType.PROJECT_INVITE,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to notify ${event.inviterId} of a decline.`, error);
     }
   }
 

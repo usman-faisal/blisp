@@ -7,21 +7,30 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { ProjectRole } from '@repo/db';
+import { InviteStatus, ProjectRole } from '@repo/db';
 import {
   AcceptInviteResponse,
+  AcceptTargetedInviteResponse,
   CreateInviteResponse,
+  DeclineInviteResponse,
   GetInvitePreviewResponse,
+  GetPendingInvitesResponse,
+  GetProjectInvitesResponse,
   GetProjectMembersResponse,
   RemoveMemberResponse,
+  RevokeInviteResponse,
+  SendUserInviteResponse,
 } from '@repo/types';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectAccessService } from 'src/projects/project-access.service';
 import {
   COLLABORATION_EVENTS,
+  InviteDeclinedEvent,
+  InviteReceivedEvent,
   MemberJoinedEvent,
 } from 'src/notifications/events/collaboration.events';
+import { SendUserInviteDto } from './dto/send-user-invite.dto';
 
 /** How long a fresh invite stays usable. */
 const INVITE_TTL_DAYS = 7;
@@ -235,6 +244,12 @@ export class InvitesService {
           usedAt: new Date(),
           usedBy: userId,
           usedByName: joiner?.name ?? null,
+          // `usedAt` stays the authority for the code flow, but leaving status at
+          // its PENDING default would make a redeemed row contradict itself — the
+          // same inconsistency the 8C migration backfilled away for existing
+          // rows. The code column is untouched: it was set at creation.
+          status: InviteStatus.ACCEPTED,
+          respondedAt: new Date(),
         },
       });
 
@@ -278,6 +293,462 @@ export class InvitesService {
         invitedBy: invite.creator.name,
       },
       message: `You have joined "${invite.project.title}".`,
+      success: true,
+    };
+  }
+
+  /**
+   * Sends an invite to one specific person, who answers it in-app.
+   *
+   * No code is minted: a targeted invite is bound to its recipient, so a
+   * shareable code would be a second, unintended way into the project.
+   */
+  async sendUserInvite(
+    inviterId: string,
+    projectId: string,
+    dto: SendUserInviteDto,
+  ): Promise<SendUserInviteResponse> {
+    // Any member may invite, same as the code flow. The cap limits growth.
+    await this.access.assertMember(inviterId, projectId);
+    await this.access.assertHasCapacity(projectId);
+
+    const recipient = dto.userId
+      ? await this.prisma.user.findUnique({
+          where: { id: dto.userId },
+          select: { id: true, name: true, email: true },
+        })
+      : await this.prisma.user.findFirst({
+          // equals, not contains — see UsersService.lookupUserByEmail.
+          where: { email: { equals: dto.email!, mode: 'insensitive' } },
+          select: { id: true, name: true, email: true },
+        });
+
+    if (!recipient) {
+      throw new NotFoundException(
+        dto.userId
+          ? 'That user was not found.'
+          : 'No account found with that email address.',
+      );
+    }
+
+    if (recipient.id === inviterId) {
+      throw new ConflictException('You are already on this project.');
+    }
+
+    // Checked before writing so the caller gets a precise reason rather than a
+    // unique-constraint violation.
+    if (await this.access.isMember(recipient.id, projectId)) {
+      throw new ConflictException(
+        `${recipient.name} is already a member of this project.`,
+      );
+    }
+
+    const inviter = await this.prisma.user.findUnique({
+      where: { id: inviterId },
+      select: { name: true },
+    });
+
+    if (!inviter) {
+      throw new NotFoundException('Your user record was not found.');
+    }
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + INVITE_TTL_DAYS);
+
+    const existing = await this.prisma.projectInvite.findUnique({
+      where: {
+        projectId_invitedUserId: { projectId, invitedUserId: recipient.id },
+      },
+      select: { id: true, status: true, expiresAt: true },
+    });
+
+    // A live invite is not replaced — telling the sender it is already pending is
+    // more useful than silently resetting the clock on it.
+    if (
+      existing?.status === InviteStatus.PENDING &&
+      existing.expiresAt > new Date()
+    ) {
+      throw new ConflictException(
+        `${recipient.name} already has a pending invitation to this project.`,
+      );
+    }
+
+    // @@unique([projectId, invitedUserId]) means a declined or expired invite
+    // occupies the slot, so re-inviting updates that row rather than inserting a
+    // second one. Without this, one decline would block the person forever.
+    const invite = existing
+      ? await this.prisma.projectInvite.update({
+          where: { id: existing.id },
+          data: {
+            status: InviteStatus.PENDING,
+            expiresAt,
+            respondedAt: null,
+            createdBy: inviterId,
+            createdByName: inviter.name,
+            // Clear the code-flow columns in case this row was ever redeemed.
+            usedAt: null,
+            usedBy: null,
+            usedByName: null,
+          },
+        })
+      : await this.prisma.projectInvite.create({
+          data: {
+            projectId,
+            // Deliberately null; see the method comment.
+            code: null,
+            createdBy: inviterId,
+            createdByName: inviter.name,
+            invitedUserId: recipient.id,
+            status: InviteStatus.PENDING,
+            expiresAt,
+          },
+        });
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { title: true },
+    });
+
+    this.logger.log(
+      `Invite ${invite.id} sent to ${recipient.email} for project ${projectId} by ${inviterId}.`,
+    );
+
+    // After the write, so a notification failure cannot lose the invite.
+    this.events.emit(
+      COLLABORATION_EVENTS.INVITE_RECEIVED,
+      new InviteReceivedEvent(
+        invite.id,
+        projectId,
+        project?.title ?? 'a project',
+        recipient.id,
+        inviter.name,
+      ),
+    );
+
+    return {
+      data: {
+        id: invite.id,
+        projectId,
+        projectTitle: project?.title ?? '',
+        status: invite.status,
+        invitedBy: inviter.name,
+        invitedUserId: recipient.id,
+        invitedUserName: recipient.name,
+        expiresAt: invite.expiresAt.toISOString(),
+        createdAt: invite.createdAt.toISOString(),
+      },
+      message: `Invitation sent to ${recipient.name}.`,
+      success: true,
+    };
+  }
+
+  /** Invites addressed to the current user and still awaiting an answer. */
+  async getPendingInvites(userId: string): Promise<GetPendingInvitesResponse> {
+    const invites = await this.prisma.projectInvite.findMany({
+      where: {
+        invitedUserId: userId,
+        status: InviteStatus.PENDING,
+        // Expiry is derived at read time rather than stamped on the row, so a
+        // lapsed invite simply stops appearing.
+        expiresAt: { gt: new Date() },
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            _count: { select: { members: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      data: invites.map((invite) => ({
+        id: invite.id,
+        projectId: invite.project.id,
+        projectTitle: invite.project.title,
+        projectDescription: invite.project.description,
+        memberCount: invite.project._count.members,
+        invitedBy: invite.createdByName,
+        expiresAt: invite.expiresAt.toISOString(),
+        createdAt: invite.createdAt.toISOString(),
+      })),
+      message: 'Pending invitations retrieved successfully.',
+      success: true,
+    };
+  }
+
+  /** Outgoing invites for a project, so the UI can show "awaiting reply". */
+  async getProjectInvites(
+    userId: string,
+    projectId: string,
+  ): Promise<GetProjectInvitesResponse> {
+    await this.access.assertMember(userId, projectId);
+
+    const invites = await this.prisma.projectInvite.findMany({
+      where: {
+        projectId,
+        // Code invites have no recipient to report on.
+        invitedUserId: { not: null },
+        status: InviteStatus.PENDING,
+        expiresAt: { gt: new Date() },
+      },
+      include: { invitedUser: { select: { name: true, email: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      data: invites.map((invite) => ({
+        id: invite.id,
+        status: invite.status,
+        invitedUserId: invite.invitedUserId!,
+        invitedUserName: invite.invitedUser?.name ?? 'Unknown',
+        invitedUserEmail: invite.invitedUser?.email ?? '',
+        invitedBy: invite.createdByName,
+        expiresAt: invite.expiresAt.toISOString(),
+        createdAt: invite.createdAt.toISOString(),
+        respondedAt: invite.respondedAt?.toISOString() ?? null,
+      })),
+      message: 'Project invitations retrieved successfully.',
+      success: true,
+    };
+  }
+
+  /**
+   * Accepts a targeted invite by id.
+   *
+   * Separate from acceptInvite (which takes a code) rather than overloading one
+   * route: a targeted invite has no code, and disambiguating two same-shaped
+   * paths by whether the parameter parses as a UUID would make an invalid id
+   * fall through to the wrong handler.
+   */
+  async acceptTargetedInvite(
+    userId: string,
+    inviteId: string,
+  ): Promise<AcceptTargetedInviteResponse> {
+    const invite = await this.prisma.projectInvite.findUnique({
+      where: { id: inviteId },
+      include: { project: { select: { id: true, title: true } } },
+    });
+
+    // NotFound rather than Forbidden for someone else's invite, matching
+    // ProjectAccessService.assertMember: 403 would confirm the invite exists.
+    if (!invite || invite.invitedUserId !== userId) {
+      throw new NotFoundException('This invitation was not found.');
+    }
+
+    // Double-tap is a no-op success, as in the code flow.
+    if (invite.status === InviteStatus.ACCEPTED) {
+      const membership = await this.prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId: invite.projectId, userId } },
+      });
+
+      return {
+        data: {
+          projectId: invite.project.id,
+          projectTitle: invite.project.title,
+          role: membership?.role ?? ProjectRole.MEMBER,
+          invitedBy: invite.createdByName,
+        },
+        message: 'You are already a member of this project.',
+        success: true,
+      };
+    }
+
+    // Distinct from expiry so the UI can say which happened.
+    if (invite.status === InviteStatus.DECLINED) {
+      throw new GoneException('You have already declined this invitation.');
+    }
+
+    if (invite.status === InviteStatus.REVOKED) {
+      throw new GoneException('This invitation was withdrawn.');
+    }
+
+    if (invite.expiresAt < new Date()) {
+      throw new GoneException('This invitation has expired.');
+    }
+
+    // Capacity is re-checked *inside* the transaction, not just on send: pending
+    // invites deliberately do not reserve a seat, so three pending invites on a
+    // one-member project are all legal and the last accept must lose.
+    const membership = await this.prisma.$transaction(async (tx) => {
+      const memberCount = await tx.projectMember.count({
+        where: { projectId: invite.projectId },
+      });
+
+      if (memberCount >= ProjectAccessService.MAX_MEMBERS) {
+        throw new ForbiddenException(
+          `This project already has the maximum of ${ProjectAccessService.MAX_MEMBERS} members.`,
+        );
+      }
+
+      const joiner = await tx.user.findUnique({
+        where: { id: userId },
+        select: { name: true },
+      });
+
+      // Conditional on still being PENDING, so two simultaneous accepts cannot
+      // both proceed — the same guard the code flow uses on usedAt.
+      const claimed = await tx.projectInvite.updateMany({
+        where: { id: invite.id, status: InviteStatus.PENDING },
+        data: {
+          status: InviteStatus.ACCEPTED,
+          respondedAt: new Date(),
+          // Kept in step with the code flow's columns so a row reads the same
+          // either way it was redeemed.
+          usedAt: new Date(),
+          usedBy: userId,
+          usedByName: joiner?.name ?? null,
+        },
+      });
+
+      if (claimed.count === 0) {
+        throw new GoneException('This invitation is no longer valid.');
+      }
+
+      const created = await tx.projectMember.create({
+        data: {
+          projectId: invite.projectId,
+          userId,
+          role: ProjectRole.MEMBER,
+        },
+      });
+
+      return { ...created, joinerName: joiner?.name ?? 'A collaborator' };
+    });
+
+    this.logger.log(
+      `"${invite.project.title}": ${userId} accepted invite ${invite.id} from ${invite.createdByName}.`,
+    );
+
+    // Reuses Phase 5's join event, so existing members still hear about it.
+    this.events.emit(
+      COLLABORATION_EVENTS.MEMBER_JOINED,
+      new MemberJoinedEvent(
+        invite.projectId,
+        invite.project.title,
+        userId,
+        membership.joinerName,
+      ),
+    );
+
+    return {
+      data: {
+        projectId: invite.project.id,
+        projectTitle: invite.project.title,
+        role: membership.role,
+        invitedBy: invite.createdByName,
+      },
+      message: `You have joined "${invite.project.title}".`,
+      success: true,
+    };
+  }
+
+  /** Declines a targeted invite. Only the sender is told. */
+  async declineInvite(userId: string, inviteId: string): Promise<DeclineInviteResponse> {
+    const invite = await this.prisma.projectInvite.findUnique({
+      where: { id: inviteId },
+      include: { project: { select: { title: true } } },
+    });
+
+    if (!invite || invite.invitedUserId !== userId) {
+      throw new NotFoundException('This invitation was not found.');
+    }
+
+    // Declining twice is a no-op success: the intent is already recorded.
+    if (invite.status === InviteStatus.DECLINED) {
+      return {
+        data: { id: invite.id },
+        message: 'Invitation already declined.',
+        success: true,
+      };
+    }
+
+    if (invite.status === InviteStatus.ACCEPTED) {
+      throw new ConflictException(
+        'You have already joined this project. Leave it instead.',
+      );
+    }
+
+    if (invite.status === InviteStatus.REVOKED) {
+      throw new GoneException('This invitation was withdrawn.');
+    }
+
+    const decliner = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+
+    await this.prisma.projectInvite.update({
+      where: { id: invite.id },
+      data: { status: InviteStatus.DECLINED, respondedAt: new Date() },
+    });
+
+    this.logger.log(`Invite ${invite.id} declined by ${userId}.`);
+
+    this.events.emit(
+      COLLABORATION_EVENTS.INVITE_DECLINED,
+      new InviteDeclinedEvent(
+        invite.projectId,
+        invite.project.title,
+        invite.createdBy,
+        decliner?.name ?? 'Someone',
+      ),
+    );
+
+    return {
+      data: { id: invite.id },
+      message: 'Invitation declined.',
+      success: true,
+    };
+  }
+
+  /**
+   * Withdraws a pending invite. The sender or the project owner may do this —
+   * the owner needs to be able to undo an invite a member sent.
+   *
+   * Deleting the row rather than marking it REVOKED, so the notification
+   * carrying its accept/decline buttons cascades away with it. A REVOKED row
+   * would leave a live-looking notification whose buttons return 410.
+   */
+  async revokeInvite(userId: string, inviteId: string): Promise<RevokeInviteResponse> {
+    const invite = await this.prisma.projectInvite.findUnique({
+      where: { id: inviteId },
+      select: { id: true, projectId: true, createdBy: true, status: true },
+    });
+
+    if (!invite) {
+      throw new NotFoundException('This invitation was not found.');
+    }
+
+    // Membership first: a non-member must not learn whether the invite exists.
+    const membership = await this.access.assertMember(userId, invite.projectId);
+
+    const isSender = invite.createdBy === userId;
+    const isOwner = membership.role === ProjectRole.OWNER;
+
+    if (!isSender && !isOwner) {
+      throw new ForbiddenException(
+        'Only the person who sent this invitation, or the project owner, can withdraw it.',
+      );
+    }
+
+    if (invite.status === InviteStatus.ACCEPTED) {
+      throw new ConflictException(
+        'That invitation was already accepted. Remove the member instead.',
+      );
+    }
+
+    await this.prisma.projectInvite.delete({ where: { id: invite.id } });
+
+    this.logger.log(`Invite ${invite.id} withdrawn by ${userId}.`);
+
+    return {
+      data: { id: invite.id },
+      message: 'Invitation withdrawn.',
       success: true,
     };
   }
