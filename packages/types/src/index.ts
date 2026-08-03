@@ -11,6 +11,7 @@ import type {
   ProjectInvite,
   Notification,
   NotificationType,
+  InviteStatus,
 } from '@repo/db';
 
 export interface ApiResponse<T = void> {
@@ -270,6 +271,57 @@ export interface AcceptInviteResponsePayload {
 export type AcceptInviteResponse = ApiResponse<AcceptInviteResponsePayload>;
 
 export type RemoveMemberResponse = ApiResponse<{ userId: string }>;
+
+/* ── Targeted invites ──────────────────────────────────────────────────── */
+
+/** An invite addressed to one person, rather than a shareable code. */
+export interface TargetedInvitePayload {
+  id: ProjectInvite['id'];
+  projectId: Project['id'];
+  projectTitle: Project['title'];
+  status: InviteStatus;
+  /** Who sent it — a name, never a raw Clerk id. */
+  invitedBy: User['name'];
+  invitedUserId: string;
+  invitedUserName: User['name'];
+  expiresAt: string;
+  createdAt: string;
+}
+
+export type SendUserInviteResponse = ApiResponse<TargetedInvitePayload>;
+
+/** An incoming invite as the recipient sees it, with enough to decide on. */
+export interface PendingInvitePayload {
+  id: ProjectInvite['id'];
+  projectId: Project['id'];
+  projectTitle: Project['title'];
+  projectDescription: Project['description'];
+  memberCount: number;
+  invitedBy: User['name'];
+  expiresAt: string;
+  createdAt: string;
+}
+
+export type GetPendingInvitesResponse = ApiResponse<PendingInvitePayload[]>;
+
+/** An outgoing invite as the sender sees it, for "invited, awaiting reply". */
+export interface OutgoingInvitePayload {
+  id: ProjectInvite['id'];
+  status: InviteStatus;
+  invitedUserId: string;
+  invitedUserName: User['name'];
+  invitedUserEmail: User['email'];
+  invitedBy: User['name'];
+  expiresAt: string;
+  createdAt: string;
+  respondedAt: string | null;
+}
+
+export type GetProjectInvitesResponse = ApiResponse<OutgoingInvitePayload[]>;
+
+export type AcceptTargetedInviteResponse = ApiResponse<AcceptInviteResponsePayload>;
+export type DeclineInviteResponse = ApiResponse<{ id: string }>;
+export type RevokeInviteResponse = ApiResponse<{ id: string }>;
 
 export interface AssignTaskResponsePayload {
   taskId: Task['id'];

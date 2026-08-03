@@ -2,7 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ApiResponse, QueryParams } from 'src/common/types/type';
 import { throwError } from 'src/common/utils/helpers';
-import {  User, Prisma } from "@repo/db";
+import {  User, Prisma, InviteStatus } from "@repo/db";
 import {
   minimalUserSelect,
   MinimalUserSelect,
@@ -136,9 +136,17 @@ export class UsersService {
       }
 
       // Hiding existing members keeps the picker from offering someone the
-      // invite would only reject with a 409.
+      // invite would only reject with a 409. People who already have a live
+      // invite are hidden for the same reason — the send would 409 on them too.
       if (excludeProjectId) {
         where.projectMembers = { none: { projectId: excludeProjectId } };
+        where.invitesReceived = {
+          none: {
+            projectId: excludeProjectId,
+            status: InviteStatus.PENDING,
+            expiresAt: { gt: new Date() },
+          },
+        };
       }
 
       const [users, totalCount] = await Promise.all([
