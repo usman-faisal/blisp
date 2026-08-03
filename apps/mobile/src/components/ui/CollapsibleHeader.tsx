@@ -7,6 +7,13 @@ type Props = {
   height: number;
   /** Extra styles applied to the outer animated container */
   style?: StyleProp<ViewStyle>;
+  /**
+   * True once the header has scrolled out of sight. A faded-out Animated.View is
+   * still mounted and still hit-tested, so without this its buttons keep taking
+   * touches from where they no longer appear — which makes anything in the header
+   * feel unreliable to tap.
+   */
+  collapsed?: boolean;
   children: React.ReactNode;
 };
 
@@ -15,7 +22,14 @@ type Props = {
  * Pair with `useCollapsibleHeader` and pass `headerHeight` as `paddingTop`
  * on the sibling ScrollView's `contentContainerStyle`.
  */
-export function CollapsibleHeader({ translateY, opacity, height, style, children }: Props) {
+export function CollapsibleHeader({
+  translateY,
+  opacity,
+  height,
+  style,
+  collapsed = false,
+  children,
+}: Props) {
   const insets = useSafeAreaInsets();
   // On iOS the app window extends behind the status bar, so we must offset by
   // the safe-area top inset. On Android the window already starts below the
@@ -24,7 +38,7 @@ export function CollapsibleHeader({ translateY, opacity, height, style, children
 
   return (
     <Animated.View
-      pointerEvents="box-none"
+      pointerEvents={collapsed ? 'none' : 'box-none'}
       style={[
         {
           position: 'absolute',

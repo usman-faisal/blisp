@@ -236,18 +236,15 @@ export default function FocusScreen() {
         height={HEADER_HEIGHT}
         style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}
       >
-        <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center gap-x-3">
-            <Avatar uri="https://picsum.photos/id/237/200/300" />
-            <View>
-              <Text className="font-text text-sm text-core-text-secondary">Welcome back,</Text>
-              <Text className="font-heading text-xl text-core-text-primary">
-                {profile?.name || 'Explorer'}
-              </Text>
-            </View>
-          </View>
-          <View className="h-12 w-12 items-center justify-center rounded-full bg-core-surface shadow-sm">
-            <Ionicons name="notifications-outline" size={22} color="#1A1714" />
+        {/* Notifications moved to the Alerts tab, so the header carries only the
+            greeting now. */}
+        <View className="flex-row items-center gap-x-3">
+          <Avatar uri="https://picsum.photos/id/237/200/300" />
+          <View>
+            <Text className="font-text text-sm text-core-text-secondary">Welcome back,</Text>
+            <Text className="font-heading text-xl text-core-text-primary">
+              {profile?.name || 'Explorer'}
+            </Text>
           </View>
         </View>
       </CollapsibleHeader>
