@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ProjectMember, ProjectRole } from '@repo/db';
+import { InviteStatus, ProjectMember, ProjectRole } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 
 /**
@@ -85,6 +85,42 @@ export class ProjectAccessService {
     if (count >= ProjectAccessService.MAX_MEMBERS) {
       throw new ForbiddenException(
         `This project already has the maximum of ${ProjectAccessService.MAX_MEMBERS} members`,
+      );
+    }
+  }
+
+  /**
+   * Throws when members **plus unanswered targeted invitations** already claim
+   * every seat. Called before sending a targeted invite.
+   *
+   * Distinct from assertHasCapacity, which counts members alone. That is correct
+   * when someone is joining right now, but too permissive when sending: a pending
+   * invite is an unfilled claim on a seat, so counting members only allows three
+   * invitations to go out for one free seat. Each send returns 201, and then the
+   * second person to accept is refused — putting the error on an invitee who did
+   * nothing wrong, for an overbooking the sender caused and never saw.
+   *
+   * Only targeted invites are counted. A share code has no identifiable recipient
+   * and no limit on how many people hold it, so there is no claim to count.
+   */
+  async assertHasCapacityForInvite(projectId: string): Promise<void> {
+    const [members, pendingInvites] = await Promise.all([
+      this.prisma.projectMember.count({ where: { projectId } }),
+      this.prisma.projectInvite.count({
+        where: {
+          projectId,
+          invitedUserId: { not: null },
+          status: InviteStatus.PENDING,
+          expiresAt: { gt: new Date() },
+        },
+      }),
+    ]);
+
+    if (members + pendingInvites >= ProjectAccessService.MAX_MEMBERS) {
+      throw new ForbiddenException(
+        members >= ProjectAccessService.MAX_MEMBERS
+          ? `This project already has the maximum of ${ProjectAccessService.MAX_MEMBERS} members.`
+          : `This project's ${ProjectAccessService.MAX_MEMBERS} seats are all taken by members or unanswered invitations. Withdraw an invitation to free one.`,
       );
     }
   }

@@ -1,6 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ProjectRole } from '@repo/db';
+import { InviteStatus, ProjectRole } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectAccessService } from '../project-access.service';
 
@@ -11,6 +11,9 @@ describe('ProjectAccessService', () => {
     projectMember: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
+    },
+    projectInvite: {
       count: jest.fn(),
     },
   };
@@ -156,6 +159,73 @@ describe('ProjectAccessService', () => {
       );
 
       await expect(service.assertHasCapacity(PROJECT)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('assertHasCapacityForInvite', () => {
+    it('resolves when members and pending invites together leave a seat', async () => {
+      mockPrisma.projectMember.count.mockResolvedValue(1);
+      mockPrisma.projectInvite.count.mockResolvedValue(1);
+
+      await expect(
+        service.assertHasCapacityForInvite(PROJECT),
+      ).resolves.toBeUndefined();
+    });
+
+    /**
+     * The case assertHasCapacity misses. One free seat by member count, but an
+     * unanswered invitation has already claimed it — so a second invite would be
+     * accepted at send time and refused at accept time, putting the error on an
+     * invitee who did nothing wrong.
+     */
+    it('throws when pending invitations have claimed the remaining seats', async () => {
+      mockPrisma.projectMember.count.mockResolvedValue(
+        ProjectAccessService.MAX_MEMBERS - 1,
+      );
+      mockPrisma.projectInvite.count.mockResolvedValue(1);
+
+      await expect(service.assertHasCapacityForInvite(PROJECT)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    // The two exhausted-seat cases read differently to the sender: a full project
+    // cannot be helped, while a seat held by an invitation can be freed.
+    it('distinguishes a full project from one whose seats are merely claimed', async () => {
+      mockPrisma.projectMember.count.mockResolvedValue(
+        ProjectAccessService.MAX_MEMBERS - 1,
+      );
+      mockPrisma.projectInvite.count.mockResolvedValue(1);
+
+      await expect(service.assertHasCapacityForInvite(PROJECT)).rejects.toThrow(
+        /withdraw an invitation/i,
+      );
+
+      mockPrisma.projectMember.count.mockResolvedValue(ProjectAccessService.MAX_MEMBERS);
+      mockPrisma.projectInvite.count.mockResolvedValue(0);
+
+      await expect(service.assertHasCapacityForInvite(PROJECT)).rejects.toThrow(
+        /maximum of/i,
+      );
+    });
+
+    // Codes have no identifiable recipient and no limit on who holds one, so
+    // there is no claim to count. Counting them would make one unused code block
+    // every future invitation.
+    it('counts only targeted, pending, unexpired invitations', async () => {
+      mockPrisma.projectMember.count.mockResolvedValue(1);
+      mockPrisma.projectInvite.count.mockResolvedValue(0);
+
+      await service.assertHasCapacityForInvite(PROJECT);
+
+      expect(mockPrisma.projectInvite.count).toHaveBeenCalledWith({
+        where: {
+          projectId: PROJECT,
+          invitedUserId: { not: null },
+          status: InviteStatus.PENDING,
+          expiresAt: { gt: expect.any(Date) },
+        },
+      });
     });
   });
 });

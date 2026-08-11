@@ -48,6 +48,7 @@ describe('InvitesService — targeted invites', () => {
     assertMember: jest.fn(),
     assertOwner: jest.fn(),
     assertHasCapacity: jest.fn(),
+    assertHasCapacityForInvite: jest.fn(),
     isMember: jest.fn(),
   };
 
@@ -90,6 +91,7 @@ describe('InvitesService — targeted invites', () => {
 
     mockAccess.assertMember.mockResolvedValue({ role: ProjectRole.OWNER });
     mockAccess.assertHasCapacity.mockResolvedValue(undefined);
+    mockAccess.assertHasCapacityForInvite.mockResolvedValue(undefined);
     mockAccess.isMember.mockResolvedValue(false);
 
     mockPrisma.project.findUnique.mockResolvedValue({ title: 'Shared roadmap' });
@@ -207,13 +209,25 @@ describe('InvitesService — targeted invites', () => {
     });
 
     it('rejects when the project is full', async () => {
-      mockAccess.assertHasCapacity.mockRejectedValue(
+      mockAccess.assertHasCapacityForInvite.mockRejectedValue(
         new ForbiddenException('full'),
       );
 
       await expect(
         service.sendUserInvite(INVITER, PROJECT, { userId: RECIPIENT }),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    /**
+     * Sending must use the invite-aware check, not the members-only one. With
+     * assertHasCapacity here instead, three invitations go out for one free seat
+     * and the second person to accept is refused for the sender's overbooking.
+     */
+    it('counts pending invitations against the seat cap, not just members', async () => {
+      await service.sendUserInvite(INVITER, PROJECT, { userId: RECIPIENT });
+
+      expect(mockAccess.assertHasCapacityForInvite).toHaveBeenCalledWith(PROJECT);
+      expect(mockAccess.assertHasCapacity).not.toHaveBeenCalled();
     });
 
     it('rejects a duplicate while one is still pending', async () => {

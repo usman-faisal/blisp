@@ -6,10 +6,13 @@ import type {
   CreateTaskCommentResponse,
   DeleteTaskCommentResponse,
   GetInvitePreviewResponse,
+  GetProjectInvitesResponse,
   GetProjectMembersResponse,
   GetProjectProgressResponse,
   GetTaskCommentsResponse,
   RemoveMemberResponse,
+  RevokeInviteResponse,
+  SendUserInviteResponse,
   UpdateTaskCommentResponse,
 } from '@repo/types';
 
@@ -34,6 +37,57 @@ export const createInvite = async (projectId: string): Promise<CreateInviteRespo
   const response = await apiClient.post<CreateInviteResponse>(
     `/projects/${projectId}/invites`,
   );
+  return response.data;
+};
+
+/**
+ * Invite one specific person, by email.
+ * POST /projects/:id/invites/user
+ *
+ * The endpoint also accepts a `userId`, which is what a search-and-pick UI would
+ * send. This passes an email because that is what the members screen collects,
+ * and the backend resolves it — one round trip instead of lookup-then-send.
+ *
+ * Mints no code, so unlike createInvite this creates no shareable way in.
+ */
+export const sendUserInvite = async (
+  projectId: string,
+  email: string,
+): Promise<SendUserInviteResponse> => {
+  const response = await apiClient.post<SendUserInviteResponse>(
+    `/projects/${projectId}/invites/user`,
+    { email },
+  );
+  return response.data;
+};
+
+/**
+ * Outgoing invitations for a project, for the "awaiting reply" list.
+ * GET /projects/:id/invites
+ *
+ * Pending and unexpired only — the backend filters both. A declined or expired
+ * invite stops appearing rather than reporting its outcome, so the caller must
+ * not treat an absent invite as an error.
+ */
+export const getProjectInvites = async (
+  projectId: string,
+): Promise<GetProjectInvitesResponse> => {
+  const response = await apiClient.get<GetProjectInvitesResponse>(
+    `/projects/${projectId}/invites`,
+  );
+  return response.data;
+};
+
+/**
+ * Withdraw an invitation. Sender or project owner only.
+ * DELETE /invites/:inviteId
+ *
+ * Deletes the row, which cascades the notifications carrying its inviteId — so
+ * the recipient's invite card disappears too rather than lingering as a prompt
+ * that can no longer be answered.
+ */
+export const revokeInvite = async (inviteId: string): Promise<RevokeInviteResponse> => {
+  const response = await apiClient.delete<RevokeInviteResponse>(`/invites/${inviteId}`);
   return response.data;
 };
 
