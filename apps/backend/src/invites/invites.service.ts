@@ -310,7 +310,9 @@ export class InvitesService {
   ): Promise<SendUserInviteResponse> {
     // Any member may invite, same as the code flow. The cap limits growth.
     await this.access.assertMember(inviterId, projectId);
-    await this.access.assertHasCapacity(projectId);
+    // Counts pending invitations as well as members, so three invites cannot go
+    // out for one free seat and leave the second acceptor holding the rejection.
+    await this.access.assertHasCapacityForInvite(projectId);
 
     const recipient = dto.userId
       ? await this.prisma.user.findUnique({
