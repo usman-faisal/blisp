@@ -117,6 +117,52 @@ ref rather than the 1 s interval counter, which was too coarse to judge a tap.
 
 ---
 
+## Continuous integration
+
+**Workflow:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — runs on every
+PR into `main` and on direct pushes to `main`.
+
+| Job | Steps | Status |
+|---|---|---|
+| `backend` | Prisma generate → typecheck → lint changed files → 249 unit tests → build | ✅ Passing |
+| `mobile` | Prisma generate → `tsc --noEmit` | ✅ Passing |
+
+Every step was run locally against this commit before the workflow was committed.
+
+### Deliberate omissions and why
+
+**Backend e2e is not in the gate.** `apps/backend/test/app.e2e-spec.ts` is broken
+in two independent ways:
+
+1. `test/jest-e2e.json` has no `moduleNameMapper`, so `src/*` imports fail to
+   resolve and the suite dies before any test runs. The unit config in
+   `package.json` has the mapping; e2e needs `{"^src/(.*)$": "<rootDir>/../src/$1"}`.
+2. The spec boots the entire `AppModule`, which opens BullMQ/Redis and Prisma
+   connections and hangs without them. It also asserts `GET /` returns
+   `Hello World!`, but `main.ts` sets a global `api/v1` prefix, so that
+   assertion is likely wrong too.
+
+A commented-out `e2e` job sits at the bottom of the workflow with Postgres and
+Redis service containers already configured to match `docker-compose.yaml`.
+Uncomment it once the two issues above are fixed.
+
+**Lint covers changed files only, not the whole repo.** A repo-wide
+`eslint src/**/*.ts` currently reports **~710 problems** — 450 real (mostly
+`@typescript-eslint/no-unsafe-member-access` on `any` in older modules) plus
+formatting drift in 56 files. The `lint` package script passes `--fix`, which
+auto-repaired all of this locally so it was never visible. Gating on the full
+set would make CI permanently red and train everyone to ignore it.
+
+To widen later: run `pnpm --filter backend lint` for the auto-fixable portion,
+resolve the unsafe-`any` findings by hand, then replace the changed-files step
+with a plain repo-wide `eslint` call.
+
+**Mobile lint is not run.** The mobile workspace has no ESLint config and no
+`eslint-config-expo` dependency, so `expo lint` tries to install one at runtime
+and fails. Needs the config and dependency added before it can be a CI step.
+
+---
+
 ## Local development notes
 
 ### Commands (corrected)
