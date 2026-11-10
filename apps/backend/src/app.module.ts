@@ -24,7 +24,6 @@ import { TranscriptionModule } from './transcription/transcription.module';
   imports: [
     BullModule.forRootAsync({
       useFactory: (configService: ConfigService) => {
-
         const redisHost = configService.get<string>('REDIS_HOST') || 'localhost';
         const redisPortValue = configService.get<string>('REDIS_PORT');
         const redisPort = redisPortValue ? Number(redisPortValue) : 6379;

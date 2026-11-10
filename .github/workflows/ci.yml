@@ -1,0 +1,200 @@
+name: CI
+
+# Gates merges into main. Runs on every PR and on direct pushes to main.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# A new push to the same PR cancels the previous run — no point finishing a
+# build for a commit that has already been superseded.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Prisma's client is generated into packages/db/generated/prisma, which is
+  # gitignored, so every job must generate it before typechecking or building.
+  # The schema only needs a syntactically valid URL to generate — no live
+  # database is contacted by `prisma generate`.
+  DATABASE_URL: postgresql://root:root@localhost:5432/blisp?schema=public
+
+jobs:
+  backend:
+    name: Backend — lint, typecheck, test, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The lint step diffs against the PR base, which needs more than the
+          # default single-commit shallow clone.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          # Matches "packageManager" in the root package.json.
+          version: 10.32.0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm turbo run db:generate
+
+      # @repo/db resolves to ./dist/index.js, which is gitignored. Generating
+      # the Prisma client is not enough — the package's own tsup build has to
+      # run, or every suite importing @repo/db dies with "Cannot find module".
+      # Only 3 of 19 suites avoid Prisma, so this is not optional.
+      # (@repo/types needs no build: its exports point straight at src/.)
+      - name: Build @repo/db
+        run: pnpm turbo run build --filter=@repo/db
+
+      - name: Typecheck
+        run: pnpm --filter backend exec tsc --noEmit
+
+      # Lints only the files this PR touches, not the whole repo.
+      #
+      # A repo-wide `eslint src/**/*.ts` currently reports ~710 problems (450 of
+      # them real, mostly no-unsafe-member-access on `any` in older modules, plus
+      # formatting drift in 56 files). The package's own lint script passes
+      # --fix, which auto-repaired all of this locally so it was never visible.
+      # Gating on the full set would make CI permanently red and teach everyone
+      # to ignore it, so new and changed code is held to the standard instead.
+      #
+      # To widen this later: clear the backlog (`pnpm --filter backend lint` for
+      # the fixable part, then the unsafe-any findings by hand) and replace this
+      # step with a plain repo-wide eslint call.
+      - name: Lint changed files
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          # A first push to a branch reports an all-zero before-sha, and a
+          # squashed/merged base can be unreachable. Fall back to the previous
+          # commit so the step still checks something real.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE="HEAD^"
+          fi
+          FILES=$(git diff --name-only --diff-filter=ACMR "$BASE" HEAD \
+            | { grep -E '^apps/backend/src/.*\.ts$' || true; } \
+            | sed 's|^apps/backend/||')
+          # Must exit early rather than fall through: `eslint` with no file
+          # arguments lints the entire project, including dist/, which is not
+          # gitignored by the eslint config and fails to parse.
+          if [ -z "$FILES" ]; then
+            echo "No backend TypeScript files changed — nothing to lint."
+            exit 0
+          fi
+          echo "Linting:"; echo "$FILES"
+          cd apps/backend
+          # shellcheck disable=SC2086
+          pnpm exec eslint $FILES
+
+      - name: Unit tests
+        run: pnpm --filter backend exec jest --ci
+
+      - name: Build
+        run: pnpm --filter backend build
+
+  mobile:
+    name: Mobile — typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The mobile app imports types from @repo/db, so the generated client has
+      # to exist before tsc runs.
+      - name: Generate Prisma client
+        run: pnpm turbo run db:generate
+
+      - name: Typecheck
+        run: pnpm --filter mobile exec tsc --noEmit
+
+      # NOTE: `expo lint` is deliberately not run. The mobile workspace has no
+      # ESLint config or eslint-config-expo dependency, so the command tries to
+      # install one at runtime and fails. Add the config and dependency, then
+      # add a lint step here.
+
+  # Backend e2e is NOT yet part of the merge gate. Two things must be fixed
+  # first, tracked in BLISP_PROGRESS.md:
+  #
+  #   1. apps/backend/test/jest-e2e.json has no moduleNameMapper, so `src/*`
+  #      imports fail to resolve and the suite dies before any test runs. The
+  #      unit config in package.json has the mapping; e2e needs the equivalent
+  #      ({"^src/(.*)$": "<rootDir>/../src/$1"}).
+  #   2. app.e2e-spec.ts boots the whole AppModule, which opens BullMQ/Redis and
+  #      Prisma connections and hangs without them. It also asserts GET / returns
+  #      "Hello World!", but main.ts sets a global "api/v1" prefix.
+  #
+  # Once fixed, uncomment this job. The service containers below are already
+  # configured to match docker-compose.yaml.
+  #
+  # e2e:
+  #   name: Backend — e2e
+  #   runs-on: ubuntu-latest
+  #
+  #   services:
+  #     postgres:
+  #       image: postgres:18-alpine
+  #       env:
+  #         POSTGRES_USER: root
+  #         POSTGRES_PASSWORD: root
+  #         POSTGRES_DB: blisp
+  #       ports: ['5432:5432']
+  #       options: >-
+  #         --health-cmd pg_isready
+  #         --health-interval 10s
+  #         --health-timeout 5s
+  #         --health-retries 5
+  #     redis:
+  #       image: redis:alpine
+  #       ports: ['6379:6379']
+  #       options: >-
+  #         --health-cmd "redis-cli ping"
+  #         --health-interval 10s
+  #         --health-timeout 5s
+  #         --health-retries 5
+  #
+  #   env:
+  #     REDIS_HOST: localhost
+  #     REDIS_PORT: 6379
+  #     # Dummy values: enough to satisfy boot-time validation. Real secrets
+  #     # belong in repository secrets, never inline here.
+  #     JWT_SECRET: ci-test-secret
+  #     CLERK_SECRET_KEY: sk_test_ci_placeholder
+  #     AI_PROVIDER: gemini
+  #     GEMINI_API_KEY: ci-placeholder
+  #
+  #   steps:
+  #     - uses: actions/checkout@v5
+  #     - uses: pnpm/action-setup@v4
+  #       with:
+  #         version: 10.32.0
+  #     - uses: actions/setup-node@v5
+  #       with:
+  #         node-version: 22
+  #         cache: pnpm
+  #     - run: pnpm install --frozen-lockfile
+  #     - run: pnpm turbo run db:generate
+  #     - run: pnpm turbo run db:deploy
+  #     - run: pnpm --filter backend exec jest --config ./test/jest-e2e.json --ci --forceExit
