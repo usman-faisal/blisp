@@ -10,8 +10,17 @@ interface FloatingInputProps {
   onMicPressOut?: () => void;
   onSubmit?: () => void;
   isRecording?: boolean;
+  /** Seconds elapsed in the current recording, shown in place of the icon. */
+  recordingSeconds?: number;
+  /** Abandons the recording without transcribing it. */
+  onCancelRecording?: () => void;
   placeholder?: string;
   blurTarget: RefObject<View | null>;
+}
+
+function formatElapsed(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
 export const FloatingInput = ({
@@ -21,6 +30,8 @@ export const FloatingInput = ({
   onMicPressOut,
   onSubmit,
   isRecording = false,
+  recordingSeconds = 0,
+  onCancelRecording,
   placeholder = 'Search...',
   blurTarget,
 }: FloatingInputProps) => {
@@ -115,23 +126,58 @@ export const FloatingInput = ({
         style={styles.blurView}
       >
         <View style={styles.row}>
-          <Ionicons name="infinite-outline" size={22} color="#C9A84C" />
-          <TextInput
-            value={value}
-            onChangeText={onChangeText}
-            placeholder={isRecording ? 'Listening...' : placeholder}
-            placeholderTextColor={isRecording ? '#E8612A' : '#B0AAA3'}
-            style={[
-              styles.input,
-              isRecording && styles.inputRecording,
-            ]}
-            autoFocus
-            onSubmitEditing={onSubmit}
-            returnKeyType="send"
-          />
+          {/* While recording, swap the brand mark for a cancel affordance so the
+              user can abandon a recording instead of being forced to send it. */}
+          {isRecording && onCancelRecording ? (
+            <Pressable
+              onPress={onCancelRecording}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel recording"
+            >
+              <Ionicons name="close-circle" size={22} color="#6B6560" />
+            </Pressable>
+          ) : (
+            <Ionicons name="infinite-outline" size={22} color="#C9A84C" />
+          )}
+
+          {isRecording ? (
+            <View style={styles.recordingRow}>
+              <View style={styles.recordingDot} />
+              <Animated.Text style={[styles.recordingLabel, { opacity: pulseAnim }]}>
+                Listening…
+              </Animated.Text>
+              <Animated.Text
+                style={styles.elapsed}
+                accessibilityLabel={`Recording, ${formatElapsed(recordingSeconds)} elapsed`}
+              >
+                {formatElapsed(recordingSeconds)}
+              </Animated.Text>
+            </View>
+          ) : (
+            <TextInput
+              value={value}
+              onChangeText={onChangeText}
+              placeholder={placeholder}
+              placeholderTextColor="#B0AAA3"
+              style={styles.input}
+              autoFocus
+              onSubmitEditing={onSubmit}
+              returnKeyType="send"
+            />
+          )}
 
           {/* Mic button with glow + pulse */}
-          <Pressable onPress={onMicPressIn} onPressOut={onMicPressOut}>
+          {/* onPressIn, not onPress: press-and-hold means recording must begin
+              the moment the finger lands. With onPress (which fires on release)
+              React Native emits onPressOut first, so a tap would stop a
+              recording that had not started and then leave one running. */}
+          <Pressable
+            onPressIn={onMicPressIn}
+            onPressOut={onMicPressOut}
+            accessibilityRole="button"
+            accessibilityLabel={isRecording ? 'Release to transcribe' : 'Hold to record your idea'}
+          >
             <Animated.View
               style={[
                 styles.micContainer,
@@ -183,8 +229,29 @@ const styles = StyleSheet.create({
     fontFamily: 'InstrumentSans', // theme fontFamily.text
     color: '#1A1714', // core.text-primary
   },
-  inputRecording: {
-    color: '#E8612A', // brand.ember — subtle visual cue
+  recordingRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#E8612A', // brand.ember
+  },
+  recordingLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontFamily: 'InstrumentSans',
+    color: '#E8612A', // brand.ember
+  },
+  elapsed: {
+    fontSize: 14,
+    fontFamily: 'InstrumentSans',
+    color: '#6B6560', // core.text-secondary
+    fontVariant: ['tabular-nums'],
   },
   micContainer: {
     width: 36,

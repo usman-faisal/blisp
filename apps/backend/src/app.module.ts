@@ -18,6 +18,7 @@ import { PipelineEventsModule } from './pipeline_events/pipeline-events.module';
 import { InvitesModule } from './invites/invites.module';
 import { CommentsModule } from './comments/comments.module';
 import { DevTokensModule } from './dev/dev-tokens.module';
+import { TranscriptionModule } from './transcription/transcription.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { DevTokensModule } from './dev/dev-tokens.module';
     MailerModule,
     WebhookModule,
     BrainDumpsModule,
+    TranscriptionModule,
     AiModule,
     DailyPlanModule,
     ProjectsModule,
