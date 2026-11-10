@@ -19,6 +19,7 @@ import { InvitesModule } from './invites/invites.module';
 import { CommentsModule } from './comments/comments.module';
 import { DevTokensModule } from './dev/dev-tokens.module';
 import { TranscriptionModule } from './transcription/transcription.module';
+import { ResearchModule } from './research/research.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { TranscriptionModule } from './transcription/transcription.module';
     WebhookModule,
     BrainDumpsModule,
     TranscriptionModule,
+    ResearchModule,
     AiModule,
     DailyPlanModule,
     ProjectsModule,

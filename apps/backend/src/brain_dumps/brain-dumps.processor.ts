@@ -11,6 +11,41 @@ import { PipelineStage } from '@repo/db';
 import { INCUBATOR_RESEARCH_PROMPT, INCUBATOR_PLAN_PROMPT } from 'src/common/prompts/incubator.prompt';
 import { z } from 'zod';
 import { TavilyResult } from 'src/common/types/type';
+import { ResearchService } from 'src/research/research.service';
+
+/**
+ * Payloads carried on the INCUBATOR queue, by job name.
+ *
+ * Previously every handler took `Job<any>`, which made each `job.data` read
+ * untyped — a renamed field would have surfaced as `undefined` inside a prompt
+ * rather than as a compile error.
+ */
+interface ResearchJobData {
+  projectId: string;
+  userId: string;
+  title: string;
+  summary: string;
+  techStack: string[];
+  rawTranscript: string;
+}
+
+/** The research job forwards its own data plus the summary it produced. */
+type PlanJobData = ResearchJobData & { researchSummary: string };
+
+interface TaskResearchJobData {
+  taskId: string;
+  projectId: string;
+  taskTitle: string;
+  projectTitle: string;
+  techStack: string[];
+}
+
+interface DiscoveryReportJobData {
+  reportId: string;
+  projectId: string;
+}
+
+type IncubatorJobData = ResearchJobData | PlanJobData | TaskResearchJobData | DiscoveryReportJobData;
 
 @Processor(QUEUES.INCUBATOR)
 export class BrainDumpsProcessor extends WorkerHost {
@@ -21,25 +56,31 @@ export class BrainDumpsProcessor extends WorkerHost {
     private readonly aiService: AiService,
     private readonly dailyPlanCronService: DailyPlanCronService,
     private readonly pipelineEvents: PipelineEventsService,
+    private readonly researchService: ResearchService,
     @InjectQueue(QUEUES.INCUBATOR) private readonly incubatorQueue: Queue,
   ) {
     super();
   }
 
-  async process(job: Job<any, any, string>): Promise<any> {
+  async process(job: Job<IncubatorJobData, unknown, string>): Promise<unknown> {
+    // BullMQ dispatches by name, so the payload type is only knowable per
+    // branch. Each cast is immediately adjacent to the name that guarantees it.
     switch (job.name) {
       case JOBS.RESEARCH:
-        return this.handleResearchJob(job);
+        return this.handleResearchJob(job as Job<ResearchJobData>);
       case JOBS.PLAN:
-        return this.handlePlanJob(job);
+        return this.handlePlanJob(job as Job<PlanJobData>);
       case JOBS.TASK_RESEARCH:
-        return this.handleTaskResearchJob(job);
+        return this.handleTaskResearchJob(job as Job<TaskResearchJobData>);
+      case JOBS.DISCOVERY_REPORT:
+        return this.handleDiscoveryReportJob(job as Job<DiscoveryReportJobData>);
       default:
         this.logger.warn(`Unknown job type: ${job.name}`);
+        return undefined;
     }
   }
 
-  private async handleResearchJob(job: Job<any>) {
+  private async handleResearchJob(job: Job<ResearchJobData>) {
     const { projectId, title, summary, techStack } = job.data;
     this.logger.log(`Phase 1: Starting research for project: ${title} (${projectId})`);
 
@@ -67,16 +108,17 @@ export class BrainDumpsProcessor extends WorkerHost {
 
     this.logger.log(`Phase 1 complete for project: ${projectId}. Triggering Phase 2.`);
 
-    await job.updateData({ ...job.data, researchSummary });
-    await this.incubatorQueue.add(JOBS.PLAN, {
-      ...job.data,
-      researchSummary,
-    });
+    const planData: PlanJobData = { ...job.data, researchSummary };
+
+    // Recorded on this job too, so a retry or an inspection of the completed
+    // job shows what Phase 2 was handed.
+    await (job as Job<PlanJobData>).updateData(planData);
+    await this.incubatorQueue.add(JOBS.PLAN, planData);
 
     return { researchSummary };
   }
 
-  private async handlePlanJob(job: Job<any>) {
+  private async handlePlanJob(job: Job<PlanJobData>) {
     const { projectId, userId, title, techStack, rawTranscript, researchSummary } = job.data;
     this.logger.log(`Phase 2: Generating action plan for project: ${title} (${projectId})`);
 
@@ -96,8 +138,12 @@ export class BrainDumpsProcessor extends WorkerHost {
         z.object({
           title: z.string(),
           status: z.literal('TODO'),
-          resourceQueries: z.array(z.string()).max(2)
-            .describe('1-2 highly specific search queries to find implementation resources for this exact task. Be precise — include library names, versions, specific patterns.'),
+          resourceQueries: z
+            .array(z.string())
+            .max(2)
+            .describe(
+              '1-2 highly specific search queries to find implementation resources for this exact task. Be precise — include library names, versions, specific patterns.',
+            ),
         }),
       ),
       morningBriefing: z.string(),
@@ -151,7 +197,20 @@ export class BrainDumpsProcessor extends WorkerHost {
     return { tasksGenerated: response.tasks.length };
   }
 
-  private async handleTaskResearchJob(job: Job<any>) {
+  /**
+   * On-demand discovery report. ResearchService owns the work and records its
+   * own success/failure on the report row, so this is a thin delegation.
+   */
+  private async handleDiscoveryReportJob(job: Job<DiscoveryReportJobData>) {
+    const { reportId, projectId } = job.data;
+    this.logger.log(`Generating discovery report ${reportId} for project ${projectId}`);
+
+    await this.researchService.generateReport(reportId, projectId);
+
+    return { reportId };
+  }
+
+  private async handleTaskResearchJob(job: Job<TaskResearchJobData>) {
     const { taskId, projectId, taskTitle, projectTitle, techStack } = job.data;
 
     await this.pipelineEvents.emit(
@@ -205,9 +264,7 @@ ${allResults.map((r, i) => `[${i}] ${r.title} — ${r.url}\n${r.snippet || ''}`)
       'You are a technical resource curator. Be selective — only pick resources that directly address the task.',
     );
 
-    const topResults = ranked.indices
-      .filter(i => i >= 0 && i < allResults.length)
-      .map(i => allResults[i]);
+    const topResults = ranked.indices.filter((i) => i >= 0 && i < allResults.length).map((i) => allResults[i]);
 
     await Promise.all(
       topResults.map((res) =>

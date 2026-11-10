@@ -17,17 +17,22 @@ export class AiService {
    */
   private readonly maxRetries: number;
 
+  /**
+   * The selected model's id, for recording which model produced a stored
+   * artefact (e.g. a research report version). Read off the model itself so it
+   * cannot drift from what is actually in use.
+   */
+  get modelId(): string {
+    return typeof this.model === 'string' ? this.model : this.model.modelId;
+  }
+
   constructor(private readonly configService: ConfigService) {
     const provider = this.configService.get<string>('AI_PROVIDER');
 
     // Blank or non-numeric falls back to the default rather than to 0, since
     // Number('') is 0 and would silently disable retries.
-    const configuredRetries = Number(
-      this.configService.get<string>('AI_MAX_RETRIES')?.trim() || NaN,
-    );
-    this.maxRetries = Number.isInteger(configuredRetries) && configuredRetries >= 0
-      ? configuredRetries
-      : 2;
+    const configuredRetries = Number(this.configService.get<string>('AI_MAX_RETRIES')?.trim() || NaN);
+    this.maxRetries = Number.isInteger(configuredRetries) && configuredRetries >= 0 ? configuredRetries : 2;
 
     if (provider === 'github') {
       const GITHUB_TOKEN = this.configService.get<string>('GITHUB_TOKEN');
@@ -39,14 +44,12 @@ export class AiService {
         name: 'github-models',
         baseURL: 'https://models.github.ai/inference',
         apiKey: GITHUB_TOKEN,
-        supportsStructuredOutputs: true
+        supportsStructuredOutputs: true,
       });
 
       // Configurable because providers retire model ids: GitHub Models pulled
       // several mid-project, and a hardcoded id means a code change to recover.
-      this.model = githubModels(
-        this.configService.get<string>('GITHUB_MODEL') ?? 'openai/gpt-4o-mini',
-      );
+      this.model = githubModels(this.configService.get<string>('GITHUB_MODEL') ?? 'openai/gpt-4o-mini');
     }
 
     if (provider === 'openrouter') {
@@ -83,19 +86,15 @@ export class AiService {
       }
       const geminiModels = createGoogleGenerativeAI({
         apiKey: GEMINI_API_KEY,
-      })
-      this.model = geminiModels(
-        this.configService.get<string>('GEMINI_MODEL') ?? 'gemini-2.0-flash-lite',
-      );
+      });
+      this.model = geminiModels(this.configService.get<string>('GEMINI_MODEL') ?? 'gemini-2.0-flash-lite');
     }
 
     // Without this, an unset or misspelled AI_PROVIDER leaves this.model
     // undefined and the failure surfaces much later, inside a queue job, as a
     // confusing error rather than at boot.
     if (!this.model) {
-      throw new Error(
-        `AI_PROVIDER must be "github", "gemini" or "openrouter" (received: ${provider ?? 'unset'}).`,
-      );
+      throw new Error(`AI_PROVIDER must be "github", "gemini" or "openrouter" (received: ${provider ?? 'unset'}).`);
     }
 
     // Read back off the model rather than repeating the fallback ids above, so
@@ -167,8 +166,11 @@ export class AiService {
         return [];
       }
 
-      const data = await response.json();
-      return data.results || [];
+      // Narrowed rather than trusted: response.json() is `any`, and callers
+      // index into .url/.title, so a shape change would surface as a crash
+      // deep in a queue job instead of an empty result set here.
+      const data = (await response.json()) as { results?: TavilyResult[] } | null;
+      return data?.results ?? [];
     } catch (error) {
       console.error('Tavily Search Error:', error);
       return [];

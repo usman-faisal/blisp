@@ -16,4 +16,7 @@ export const JOBS = {
   RESEARCH: 'research',
   PLAN: 'plan',
   TASK_RESEARCH: 'task_research',
+  // On-demand product discovery report, distinct from RESEARCH (the fast
+  // documentation pass that feeds task planning).
+  DISCOVERY_REPORT: 'discovery_report',
 };
