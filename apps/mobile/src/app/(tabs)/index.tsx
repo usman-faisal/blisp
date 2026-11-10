@@ -17,14 +17,25 @@ import { useProfile } from '@/hooks/useProfile';
 import { useDailyPlan } from '@/hooks/useDailyPlan';
 import Text from '@/components/ui/Text';
 import { createBrainDump } from '@/lib/api/brain-dumps';
-import { uploadAudioBrainDump } from '@/lib/api/daily-plan';
+import { TranscriptionError, transcribeAudio } from '@/lib/api/transcription';
+import {
+  TranscriptReviewSheet,
+  type TranscriptSheetStatus,
+} from '@/components/TranscriptReviewSheet';
 import {
   useAudioRecorder,
   RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
 } from 'expo-audio';
+import { Alert, Linking } from 'react-native';
 import type { BrainDumpResponse } from '@repo/types';
+
+/**
+ * Below this, the capture was almost certainly an accidental tap rather than
+ * speech. Checked before upload so we never pay for a 200 ms recording.
+ */
+const MIN_RECORDING_SECONDS = 1;
 
 const CARD_VARIANTS = ['dark', 'sage', 'ember', 'flax'] as const;
 
@@ -132,8 +143,42 @@ export default function FocusScreen() {
   });
 
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+
+  /** Voice capture review state — steps 6–9 of the capture flow. */
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const [sheetStatus, setSheetStatus] = useState<TranscriptSheetStatus>('transcribing');
+  const [transcript, setTranscript] = useState('');
+  const [transcriptDuration, setTranscriptDuration] = useState<number | undefined>();
+  const [transcriptError, setTranscriptError] = useState<{
+    message: string;
+    retryable: boolean;
+  } | null>(null);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+
+  /** Kept so "Try again" can re-upload the same audio without re-recording. */
+  const lastRecordingUri = useRef<string | null>(null);
+  /** Guards against the mic being released twice (press-out + cancel). */
+  const isStoppingRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /**
+   * Wall-clock start of the current recording. Read instead of the
+   * recordingSeconds state because the press-out handler can run with a stale
+   * closure, and a 1 s interval counter is too coarse to judge a quick tap.
+   */
+  const recordingStartedAtRef = useRef<number | null>(null);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  // A recording left running when the screen unmounts would hold the mic and
+  // keep the audio session in recording mode.
+  useEffect(() => stopTimer, [stopTimer]);
 
   const blurTargetRef = useRef<View | null>(null);
   const { translateY: headerTranslateY, opacity: headerOpacity, onScroll, headerHeight: HEADER_HEIGHT } = useCollapsibleHeader(80);
@@ -174,11 +219,54 @@ export default function FocusScreen() {
     setToast({ visible: false, projectTitle: '' });
   }, []);
 
+  /** Uploads audio and shows the transcript for review. Never auto-submits. */
+  const runTranscription = useCallback(async (uri: string) => {
+    setSheetStatus('transcribing');
+    setTranscriptError(null);
+    setSheetVisible(true);
+
+    try {
+      const result = await transcribeAudio(uri);
+      setTranscript(result.transcript);
+      setTranscriptDuration(result.durationSeconds);
+      setSheetStatus('ready');
+    } catch (error) {
+      // TranscriptionError messages are already user-facing; anything else is
+      // reduced to a generic line rather than surfacing internals.
+      const isKnown = error instanceof TranscriptionError;
+      setTranscriptError({
+        message: isKnown
+          ? error.message
+          : 'Something went wrong while transcribing. Please try again.',
+        retryable: isKnown ? error.retryable : true,
+      });
+      setSheetStatus('error');
+      if (!isKnown) {
+        console.error('[Transcription] Unexpected failure:', error);
+      }
+    }
+  }, []);
+
   const startRecording = useCallback(async () => {
     try {
-      const { granted } = await requestRecordingPermissionsAsync();
+      const { granted, canAskAgain } = await requestRecordingPermissionsAsync();
       if (!granted) {
-        console.warn('[Recording] Microphone permission denied');
+        // Permanently denied needs Settings; a soft denial can just be retried.
+        if (canAskAgain) {
+          Alert.alert(
+            'Microphone needed',
+            'BLISP needs your microphone to capture spoken ideas. Tap the mic again to allow it.',
+          );
+        } else {
+          Alert.alert(
+            'Microphone access is off',
+            'Enable the microphone for BLISP in Settings to capture ideas by voice. You can still type them in the meantime.',
+            [
+              { text: 'Not now', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+            ],
+          );
+        }
         return;
       }
 
@@ -189,33 +277,136 @@ export default function FocusScreen() {
 
       await recorder.prepareToRecordAsync();
       recorder.record();
+
+      isStoppingRef.current = false;
+      recordingStartedAtRef.current = Date.now();
+      setRecordingSeconds(0);
       setIsRecording(true);
+
+      stopTimer();
+      timerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
     } catch (err) {
       console.error('[Recording] Failed to start:', err);
+      Alert.alert('Could not start recording', 'Please try again in a moment.');
     }
-  }, [recorder]);
+  }, [recorder, stopTimer]);
 
-  const stopRecording = useCallback(async () => {
-    if (!isRecording) return;
+  /** Releases the mic and returns the captured uri, or null if unusable. */
+  const releaseRecorder = useCallback(async (): Promise<string | null> => {
+    stopTimer();
+    setIsRecording(false);
 
     try {
-      setIsRecording(false);
       await recorder.stop();
+    } finally {
+      // Must run even if stop() throws, or the device stays in recording mode.
+      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+    }
 
-      await setAudioModeAsync({
-        allowsRecording: false,
-      });
+    return recorder.uri ?? null;
+  }, [recorder, stopTimer]);
 
-      const uri = recorder.uri;
+  const stopRecording = useCallback(async () => {
+    if (!isRecording || isStoppingRef.current) return;
+    isStoppingRef.current = true;
 
-      if (uri) {
-        await uploadAudioBrainDump(uri);
-        mutate();
+    const startedAt = recordingStartedAtRef.current;
+    const elapsed = startedAt ? (Date.now() - startedAt) / 1000 : 0;
+    recordingStartedAtRef.current = null;
+
+    try {
+      const uri = await releaseRecorder();
+
+      if (!uri) {
+        Alert.alert('Nothing recorded', 'That recording came back empty. Please try again.');
+        return;
       }
+
+      if (elapsed < MIN_RECORDING_SECONDS) {
+        Alert.alert(
+          'Hold to record',
+          'Keep the mic button held down while you speak your idea.',
+        );
+        return;
+      }
+
+      lastRecordingUri.current = uri;
+      await runTranscription(uri);
     } catch (err) {
       console.error('[Recording] Failed to stop:', err);
+      Alert.alert('Recording failed', 'We could not save that recording. Please try again.');
+    } finally {
+      isStoppingRef.current = false;
     }
-  }, [isRecording, recorder, mutate]);
+  }, [isRecording, releaseRecorder, runTranscription]);
+
+  /** Abandons the in-progress recording without transcribing or charging. */
+  const cancelRecording = useCallback(async () => {
+    if (!isRecording || isStoppingRef.current) return;
+    isStoppingRef.current = true;
+
+    recordingStartedAtRef.current = null;
+
+    try {
+      await releaseRecorder();
+      lastRecordingUri.current = null;
+    } catch (err) {
+      console.error('[Recording] Failed to cancel:', err);
+    } finally {
+      isStoppingRef.current = false;
+      setRecordingSeconds(0);
+    }
+  }, [isRecording, releaseRecorder]);
+
+  const retryTranscription = useCallback(() => {
+    const uri = lastRecordingUri.current;
+    if (!uri) {
+      setSheetVisible(false);
+      return;
+    }
+    void runTranscription(uri);
+  }, [runTranscription]);
+
+  const closeSheet = useCallback(() => {
+    setSheetVisible(false);
+    setTranscript('');
+    setTranscriptDuration(undefined);
+    setTranscriptError(null);
+    lastRecordingUri.current = null;
+  }, []);
+
+  /**
+   * Confirmed transcript → existing idea flow.
+   *
+   * isSubmitting gates the button, so a confirmed transcript creates exactly
+   * one brain dump even if the user taps twice.
+   */
+  const submitTranscript = useCallback(async () => {
+    const text = transcript.trim();
+    if (!text || isSubmitting) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const result = await createBrainDump(text);
+      const projectTitle =
+        (result as BrainDumpResponse)?.data?.projects?.[0]?.title ?? 'Your idea';
+
+      closeSheet();
+      setToast({ visible: true, projectTitle });
+      mutate();
+    } catch (error) {
+      console.error('[Transcription] Brain dump submit failed:', error);
+      // Stay on the review step with the text intact: the transcript is good,
+      // only the submit failed, so the user can simply press Send again.
+      Alert.alert(
+        'Could not send your idea',
+        'Your transcript is still here. Check your connection and press Send again.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [transcript, isSubmitting, closeSheet, mutate]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -393,8 +584,24 @@ export default function FocusScreen() {
         onMicPressIn={startRecording}
         onMicPressOut={stopRecording}
         isRecording={isRecording}
+        recordingSeconds={recordingSeconds}
+        onCancelRecording={cancelRecording}
         placeholder="Unload your thoughts..."
         blurTarget={blurTargetRef}
+      />
+
+      <TranscriptReviewSheet
+        visible={sheetVisible}
+        status={sheetStatus}
+        transcript={transcript}
+        onChangeTranscript={setTranscript}
+        durationSeconds={transcriptDuration}
+        errorMessage={transcriptError?.message}
+        canRetry={transcriptError?.retryable ?? false}
+        isSubmitting={isSubmitting}
+        onRetry={retryTranscription}
+        onDiscard={closeSheet}
+        onSubmit={submitTranscript}
       />
 
       <SubmissionToast
