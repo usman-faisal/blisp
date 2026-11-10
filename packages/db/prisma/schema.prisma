@@ -44,6 +44,22 @@ enum PipelineStage {
   DAILY_PLAN_COMPLETED
   RESOURCE_FETCH_STARTED
   RESOURCE_FETCH_COMPLETED
+  // Discovery report — distinct from RESEARCH_*, which covers the fast
+  // documentation pass that feeds task planning.
+  DISCOVERY_REPORT_STARTED
+  DISCOVERY_REPORT_COMPLETED
+  DISCOVERY_REPORT_FAILED
+}
+
+enum ResearchReportStatus {
+  /// Generation queued or in flight; sections not yet written.
+  PENDING
+  /// Generated and readable, but the user has not accepted it.
+  DRAFT
+  /// User accepted this version. Regeneration must not overwrite it.
+  APPROVED
+  /// Generation failed; `error` explains why. Kept so the UI can show it.
+  FAILED
 }
 
 enum ProjectRole {
@@ -163,6 +179,8 @@ model Project {
   // events are all per-user. Membership governs access; userId governs origin.
   members        ProjectMember[]
   invites        ProjectInvite[]
+
+  researchReports ResearchReport[]
 
   @@map("projects")
 }
@@ -304,6 +322,42 @@ model Resource {
   task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
   @@map("resources")
+}
+
+/// An evidence-informed product discovery report for a project.
+///
+/// Versioned rather than mutated: regenerating inserts version + 1 and leaves
+/// earlier rows intact, so an APPROVED report can never be silently destroyed.
+model ResearchReport {
+  id           String               @id @default(uuid()) @db.Uuid
+  projectId    String               @map("project_id") @db.Uuid
+  /// 1-based, per project. Unique with projectId.
+  version      Int
+  status       ResearchReportStatus @default(PENDING)
+
+  /// The report body, shaped by the Zod schema in research.schema.ts. Stored as
+  /// JSON because the section set is prompt-defined and will evolve; pinning it
+  /// to columns would mean a migration per wording change.
+  sections     Json?
+  /// Retrieved sources: [{ title, url, retrievedAt }]. Kept separate from
+  /// sections so citations can be validated and rendered independently.
+  sources      Json?
+
+  /// When the underlying web research ran — a report's claims age.
+  researchedAt DateTime?            @map("researched_at")
+  /// Which model produced this version, for reproducibility.
+  model        String?              @db.VarChar(100)
+  /// Populated only when status is FAILED.
+  error        String?              @db.Text
+
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, version])
+  @@index([projectId, status])
+  @@map("research_reports")
 }
 
 model ProjectEvent {
