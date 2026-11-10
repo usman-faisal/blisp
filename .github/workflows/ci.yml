@@ -48,6 +48,14 @@ jobs:
       - name: Generate Prisma client
         run: pnpm turbo run db:generate
 
+      # @repo/db resolves to ./dist/index.js, which is gitignored. Generating
+      # the Prisma client is not enough — the package's own tsup build has to
+      # run, or every suite importing @repo/db dies with "Cannot find module".
+      # Only 3 of 19 suites avoid Prisma, so this is not optional.
+      # (@repo/types needs no build: its exports point straight at src/.)
+      - name: Build @repo/db
+        run: pnpm turbo run build --filter=@repo/db
+
       - name: Typecheck
         run: pnpm --filter backend exec tsc --noEmit
 
