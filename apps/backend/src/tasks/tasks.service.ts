@@ -74,11 +74,7 @@ export class TasksService {
     };
   }
 
-  async updateTaskStatus(
-    userId: string,
-    taskId: string,
-    dto: UpdateTaskStatusDto,
-  ): Promise<UpdateTaskStatusResponse> {
+  async updateTaskStatus(userId: string, taskId: string, dto: UpdateTaskStatusDto): Promise<UpdateTaskStatusResponse> {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: { project: { select: { id: true, title: true, techStack: true } } },
@@ -94,7 +90,14 @@ export class TasksService {
 
     const updated = await this.prisma.task.update({
       where: { id: taskId },
-      data: { status: dto.status },
+      data: {
+        status: dto.status,
+        // Stamped on completion and cleared when a task is reopened, so weekly
+        // history and streaks can be derived without a separate event log. Set
+        // here rather than in a Prisma middleware so the one place that changes
+        // status is the one place that records when.
+        completedAt: dto.status === TaskStatus.DONE ? new Date() : null,
+      },
       include: { project: { select: { id: true, title: true, techStack: true } } },
     });
 
@@ -139,11 +142,7 @@ export class TasksService {
    * Any member can reassign any task — at 2-3 people, restricting this to the
    * current assignee creates friction without preventing anything.
    */
-  async assignTask(
-    userId: string,
-    taskId: string,
-    dto: AssignTaskDto,
-  ): Promise<AssignTaskResponse> {
+  async assignTask(userId: string, taskId: string, dto: AssignTaskDto): Promise<AssignTaskResponse> {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       select: {
@@ -173,9 +172,7 @@ export class TasksService {
       });
 
       if (!membership) {
-        throw new BadRequestException(
-          'That user is not a member of this project. Invite them first.',
-        );
+        throw new BadRequestException('That user is not a member of this project. Invite them first.');
       }
 
       assigneeName = membership.user.name;

@@ -20,6 +20,7 @@ import { CommentsModule } from './comments/comments.module';
 import { DevTokensModule } from './dev/dev-tokens.module';
 import { TranscriptionModule } from './transcription/transcription.module';
 import { ResearchModule } from './research/research.module';
+import { RoadmapModule } from './roadmap/roadmap.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { ResearchModule } from './research/research.module';
     BrainDumpsModule,
     TranscriptionModule,
     ResearchModule,
+    RoadmapModule,
     AiModule,
     DailyPlanModule,
     ProjectsModule,
