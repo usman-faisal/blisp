@@ -11,8 +11,8 @@ One milestone at a time: implement, smoke-test, commit, then move on.
 | 1 | Dashboard | P0 | ✅ Done (pre-existing) |
 | 2 | Voice-to-text idea capture | P0 | ✅ Done — provider key pending |
 | 3 | AI research, report, feature recommendations | P0 | ✅ Done — beta ([findings](./DISCOVERY_REPORT_FINDINGS.md)) |
-| 4 | Personalized roadmap and task tracker | P0 | ⬜ Not started |
-| 5 | Notifications and streaks | P0 | 🟡 Partial — in-app done, push missing |
+| 4 | Personalized roadmap and task tracker | P0 | ✅ Done |
+| 5 | Notifications and streaks | P0 | 🟡 Partial — in-app + streaks done, push missing |
 | 6 | GitHub integration | P1 | ⬜ Not started |
 | 7 | Project-aware AI assistant | P1 | ⬜ Not started |
 | 8 | Collaboration verification | P1 | ✅ Done (see [COLLABORATION_PROGRESS.md](./COLLABORATION_PROGRESS.md)) |
