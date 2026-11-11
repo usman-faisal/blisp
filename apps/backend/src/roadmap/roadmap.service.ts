@@ -1,9 +1,15 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { MilestoneStatus, Prisma, TaskStatus } from '@repo/db';
+import { MilestoneStatus, Prisma, ResearchReportStatus, TaskStatus } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectAccessService } from 'src/projects/project-access.service';
 import { ProgressTask, dailyCompletion, summarizeProgress } from './progress';
-import { EXCLUDED_FROM_PROGRESS } from './roadmap.constants';
+import { ScopeItem, generatePlan, scopeFromReport } from './roadmap.generator';
+import {
+  DEFAULT_HOURS_PER_DAY,
+  DEFAULT_HOURS_PER_POINT,
+  EXCLUDED_FROM_PROGRESS,
+  HOURS_PER_POINT,
+} from './roadmap.constants';
 import { SchedulableTask, ScheduleFit, assessSchedule } from './scheduler';
 
 /** Fields every progress calculation reads. */
@@ -79,6 +85,154 @@ export class RoadmapService {
     });
 
     return project;
+  }
+
+  /**
+   * Scope suggested from the project's approved discovery report.
+   *
+   * Only an APPROVED report is used. A DRAFT has not been accepted by anyone,
+   * and building a roadmap on unreviewed AI output is exactly the criticism the
+   * report's own beta marking invites — approval is what makes this the user's
+   * scope rather than the model's. Every item is editable before planning.
+   *
+   * Returns an empty list rather than throwing when there is no approved
+   * report: the user can still plan by entering scope themselves.
+   */
+  async suggestScope(userId: string, projectId: string) {
+    await this.access.assertMember(userId, projectId);
+
+    const report = await this.prisma.researchReport.findFirst({
+      where: { projectId, status: ResearchReportStatus.APPROVED },
+      orderBy: { version: 'desc' },
+      select: { version: true, sections: true },
+    });
+
+    const sections = report?.sections as {
+      mvpScope?: { mustHave?: string[]; shouldHave?: string[]; later?: string[] };
+    } | null;
+
+    if (!sections?.mvpScope) {
+      return { fromReportVersion: null, scope: [] };
+    }
+
+    return {
+      fromReportVersion: report?.version ?? null,
+      scope: scopeFromReport(sections.mvpScope),
+    };
+  }
+
+  /**
+   * Creates or replaces the roadmap from the scope the user confirmed.
+   *
+   * Completed work is never touched. Existing DONE tasks keep their milestone
+   * link if it survives, and are otherwise moved to the backlog rather than
+   * deleted — the plan requires rescheduling to preserve completed work, and
+   * deleting it to make room for a tidy new roadmap would be the worst reading
+   * of "regenerate".
+   */
+  async generateRoadmap(userId: string, projectId: string, scope: ScopeItem[]) {
+    await this.access.assertMember(userId, projectId);
+
+    if (scope.length === 0) {
+      throw new BadRequestException('Cannot build a roadmap with no scope.');
+    }
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, deadline: true, hoursPerDay: true, workingDays: true, skillLevel: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found.');
+    }
+
+    const planned = generatePlan({
+      scope,
+      deadline: project.deadline,
+      hoursPerDay: project.hoursPerDay ?? DEFAULT_HOURS_PER_DAY,
+      workingDays: project.workingDays,
+      hoursPerPoint: project.skillLevel ? HOURS_PER_POINT[project.skillLevel] : DEFAULT_HOURS_PER_POINT,
+      from: new Date(),
+    });
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Previously-generated, untouched roadmap tasks are removed before
+      // rebuilding. Without this, regenerating duplicated every task: the old
+      // ones were only unlinked, so a second run left two copies of each.
+      //
+      // The conditions are deliberately narrow. Only tasks that are still TODO,
+      // currently attached to a milestone, and carry no progress signals are
+      // deleted — anything the user has started, finished, scheduled, claimed
+      // or commented on is kept and unlinked to the backlog instead.
+      await tx.task.deleteMany({
+        where: {
+          projectId,
+          milestoneId: { not: null },
+          status: TaskStatus.TODO,
+          completedAt: null,
+          dailyPlanId: null,
+          plannedFor: null,
+          assigneeId: null,
+          comments: { none: {} },
+        },
+      });
+
+      // Whatever survived above is real work. Unlink rather than delete:
+      // regenerating reorganises planning, it does not discard work.
+      await tx.task.updateMany({
+        where: { projectId, milestoneId: { not: null } },
+        data: { milestoneId: null },
+      });
+
+      // Safe now that nothing references them.
+      await tx.milestone.deleteMany({ where: { projectId } });
+
+      const created: {
+        id: string;
+        title: string;
+        position: number;
+        targetDate: Date | null;
+        taskCount: number;
+      }[] = [];
+
+      for (const milestone of planned) {
+        const row = await tx.milestone.create({
+          data: {
+            projectId,
+            title: milestone.title,
+            position: milestone.position,
+            targetDate: milestone.targetDate,
+          },
+          select: { id: true, title: true, position: true, targetDate: true },
+        });
+
+        if (milestone.tasks.length > 0) {
+          await tx.task.createMany({
+            data: milestone.tasks.map((task) => ({
+              projectId,
+              milestoneId: row.id,
+              title: task.title,
+              priority: task.priority,
+              effort: task.effort,
+              resourceQueries: [],
+            })),
+          });
+        }
+
+        created.push({ ...row, taskCount: milestone.tasks.length });
+      }
+
+      await tx.project.update({
+        where: { id: projectId },
+        data: { roadmapPlannedAt: new Date() },
+      });
+
+      return created;
+    });
+
+    this.logger.log(`Generated ${result.length} milestone(s) for project ${projectId} (user ${userId})`);
+
+    return { milestones: result };
   }
 
   /**
