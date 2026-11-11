@@ -584,3 +584,188 @@ export type CancelResearchReportResponse = ApiResponse<RequestResearchReportPayl
  * output is reviewed-but-not-guaranteed before acting on it.
  */
 export const RESEARCH_REPORT_STAGE = 'beta' as const;
+
+/* ── Roadmap and tracker ───────────────────────────────────────────────── */
+
+export type TaskEffortValue = 'SMALL' | 'MEDIUM' | 'LARGE';
+export type TaskPriorityValue = 'MUST_HAVE' | 'SHOULD_HAVE' | 'LATER';
+export type SkillLevelValue = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+export type MilestoneStatusValue = 'PLANNED' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+
+/**
+ * Progress, as computed by the single source of truth on the backend
+ * (roadmap/progress.ts).
+ *
+ * Both figures are returned deliberately: `percentComplete` is effort-weighted
+ * and is the headline, while `percentByCount` is shown beside it because a user
+ * who has finished nine small tasks and not the big one deserves to see the
+ * difference rather than only the flattering number.
+ */
+export interface ProgressSummaryPayload {
+  /** Excludes cancelled and deferred work. */
+  total: number;
+  done: number;
+  inProgress: number;
+  todo: number;
+  totalPoints: number;
+  donePoints: number;
+  /** 0-100, weighted by effort. */
+  percentComplete: number;
+  /** 0-100, by raw task count. */
+  percentByCount: number;
+  /** Cancelled and deferred, reported so they are visible rather than hidden. */
+  excluded: number;
+}
+
+export interface RoadmapTaskPayload {
+  id: string;
+  title: string;
+  status: Task['status'];
+  effort: TaskEffortValue | null;
+  priority: TaskPriorityValue | null;
+  acceptanceCriteria: string | null;
+  plannedFor: string | null;
+  completedAt: string | null;
+  assigneeId: string | null;
+  assigneeName: string | null;
+}
+
+export interface MilestonePayload {
+  id: string;
+  title: string;
+  position: number;
+  status: MilestoneStatusValue;
+  targetDate: string | null;
+  tasks: RoadmapTaskPayload[];
+  progress: ProgressSummaryPayload;
+}
+
+export interface RoadmapSettingsPayload {
+  deadline: string | null;
+  hoursPerDay: number | null;
+  /** ISO weekdays, 1 = Monday .. 7 = Sunday. */
+  workingDays: number[];
+  skillLevel: SkillLevelValue | null;
+  roadmapPlannedAt: string | null;
+}
+
+/** "Work more hours" — one of the two ways out when work does not fit. */
+export interface MoreHoursRemedyPayload {
+  kind: 'MORE_HOURS';
+  requiredHoursPerDay: number;
+  additionalHoursPerDay: number;
+}
+
+/** "Cut scope" — the exact tasks to defer, lowest priority first. */
+export interface ShrinkScopeRemedyPayload {
+  kind: 'SHRINK_SCOPE';
+  taskIds: string[];
+  tasks: { id: string; title: string; priority: TaskPriorityValue | null }[];
+  hoursRemoved: number;
+}
+
+export type ScheduleRemedyPayload = MoreHoursRemedyPayload | ShrinkScopeRemedyPayload;
+
+/**
+ * Whether the remaining work fits before the deadline.
+ *
+ * When it does not, `remedies` offers options and the backend applies none of
+ * them: silently extending hides the problem, and silently deferring changes
+ * the user's scope without asking.
+ */
+export interface ScheduleFitPayload {
+  remainingPoints: number;
+  remainingHours: number;
+  availableDays: number;
+  availableHours: number;
+  fits: boolean;
+  overflowHours: number;
+  remedies: ScheduleRemedyPayload[];
+}
+
+export interface RoadmapResponsePayload {
+  projectId: string;
+  projectTitle: string;
+  settings: RoadmapSettingsPayload;
+  milestones: MilestonePayload[];
+  /** Tasks not attached to any milestone — the backlog. */
+  unplanned: RoadmapTaskPayload[];
+  progress: ProgressSummaryPayload;
+  schedule: ScheduleFitPayload;
+}
+
+export type GetRoadmapResponse = ApiResponse<RoadmapResponsePayload>;
+
+export interface TodayTaskPayload extends Omit<RoadmapTaskPayload, 'plannedFor' | 'completedAt'> {
+  milestoneId: string | null;
+}
+
+export interface TodayResponsePayload {
+  date: string;
+  tasks: TodayTaskPayload[];
+  /** Null when nothing is planned — a rest day is not 0% complete. */
+  daily: ProgressSummaryPayload | null;
+}
+
+export type GetTodayResponse = ApiResponse<TodayResponsePayload>;
+
+export interface HistoryDayPayload {
+  /** YYYY-MM-DD. */
+  date: string;
+  completed: number;
+  points: number;
+}
+
+/**
+ * Completion streak.
+ *
+ * `current` survives an empty *today*: a user opening the app in the morning
+ * has not lost anything yet. Zero is simply zero — there is no "broken" state
+ * and no previous-best comparison, per the plan's rule against shame-based
+ * framing.
+ */
+export interface StreakPayload {
+  current: number;
+  longest: number;
+  activeDays: number;
+}
+
+export interface HistoryResponsePayload {
+  from: string;
+  /** One entry per day including empty ones, so a week renders without gaps. */
+  days: HistoryDayPayload[];
+  streak: StreakPayload;
+}
+
+export type GetRoadmapHistoryResponse = ApiResponse<HistoryResponsePayload>;
+
+/** One item of scope, as suggested or after the user edits it. */
+export interface ScopeItemPayload {
+  title: string;
+  priority: TaskPriorityValue;
+  effort: TaskEffortValue;
+  /** True when it originated in the approved report rather than the user. */
+  fromReport: boolean;
+}
+
+export interface SuggestedScopePayload {
+  /** Which approved report version it came from; null when there is none. */
+  fromReportVersion: number | null;
+  scope: ScopeItemPayload[];
+}
+
+export type GetSuggestedScopeResponse = ApiResponse<SuggestedScopePayload>;
+
+export interface GeneratedMilestonePayload {
+  id: string;
+  title: string;
+  position: number;
+  targetDate: string | null;
+  taskCount: number;
+}
+
+export type GenerateRoadmapResponse = ApiResponse<{ milestones: GeneratedMilestonePayload[] }>;
+export type UpdateRoadmapSettingsResponse = ApiResponse<RoadmapSettingsPayload & { id: string }>;
+export type DeferTasksResponse = ApiResponse<{ deferred: number }>;
+export type RestoreTaskResponse = ApiResponse<{ id: string; status: Task['status'] }>;
+export type SetMilestoneStatusResponse = ApiResponse<{ id: string; status: MilestoneStatusValue }>;

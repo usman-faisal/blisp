@@ -11,6 +11,7 @@ import {
   HOURS_PER_POINT,
 } from './roadmap.constants';
 import { SchedulableTask, ScheduleFit, assessSchedule } from './scheduler';
+import { summarizeStreak } from './streak';
 
 /** Fields every progress calculation reads. */
 const PROGRESS_SELECT = { status: true, effort: true } as const;
@@ -480,9 +481,12 @@ export class RoadmapService {
       }
     }
 
+    const dayEntries = [...byDay.entries()].map(([date, value]) => ({ date, ...value }));
+
     return {
       from: start,
-      days: [...byDay.entries()].map(([date, value]) => ({ date, ...value })),
+      days: dayEntries,
+      streak: summarizeStreak(dayEntries),
     };
   }
 

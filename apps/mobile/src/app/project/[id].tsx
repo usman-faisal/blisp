@@ -275,6 +275,28 @@ export default function ProjectRoadmapScreen() {
               on a solo project it would just restate the bar above. */}
           {progress && members.length > 1 && <ProjectProgressPanel progress={progress} />}
 
+          {/* Roadmap. Placed above the discovery report because planning is
+              the more frequent destination once a project is active. */}
+          <Pressable
+            onPress={() =>
+              router.push(
+                `/project/roadmap?projectId=${id}&projectTitle=${encodeURIComponent(project.title)}` as any,
+              )
+            }
+            className="mt-6 flex-row items-center gap-x-3 rounded-2xl bg-core-surface/60 p-4 active:opacity-70"
+          >
+            <View className="h-9 w-9 items-center justify-center rounded-full bg-brand-flax/15">
+              <Ionicons name="map-outline" size={17} color="#C9A84C" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-sm font-semibold text-core-text-primary">Roadmap and progress</Text>
+              <Text className="mt-0.5 text-xs text-core-text-secondary">
+                Milestones, dates, and what fits your deadline
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#B0AAA3" />
+          </Pressable>
+
           {/* Discovery report. The screen owns every state (none yet, pending,
               failed, ready), so this is an unconditional entry point rather
               than one that has to know the report's status to render. */}
@@ -284,7 +306,7 @@ export default function ProjectRoadmapScreen() {
                 `/project/research?projectId=${id}&projectTitle=${encodeURIComponent(project.title)}` as any,
               )
             }
-            className="mt-6 flex-row items-center gap-x-3 rounded-2xl bg-core-surface/60 p-4 active:opacity-70"
+            className="mt-3 flex-row items-center gap-x-3 rounded-2xl bg-core-surface/60 p-4 active:opacity-70"
           >
             <View className="h-9 w-9 items-center justify-center rounded-full bg-brand-ember-mist">
               <Ionicons name="telescope-outline" size={17} color="#E8612A" />
