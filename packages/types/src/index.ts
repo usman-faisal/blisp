@@ -12,6 +12,8 @@ import type {
   Notification,
   NotificationType,
   InviteStatus,
+  ResearchReport,
+  ResearchReportStatus,
 } from '@repo/db';
 
 export interface ApiResponse<T = void> {
@@ -410,3 +412,175 @@ export type DismissNotificationResponse = ApiResponse<{
   id: string;
   unreadCount: number;
 }>;
+
+/* ── Research reports ──────────────────────────────────────────────────── */
+
+/**
+ * Where a statement came from. Mirrors `EvidenceKind` in
+ * apps/backend/src/research/research.schema.ts — the UI renders a badge per
+ * kind, so the distinction has to survive the network boundary.
+ */
+export type EvidenceKind = 'VERIFIED' | 'ANALYSIS' | 'RECOMMENDATION';
+
+export interface ResearchClaim {
+  text: string;
+  kind: EvidenceKind;
+  /** Non-null only on VERIFIED claims, and only for a URL actually retrieved. */
+  sourceUrl: string | null;
+}
+
+export interface ComparableProductPayload {
+  name: string;
+  whatItDoesWell: string[];
+  weaknesses: string[];
+  sourceUrl: string | null;
+  /**
+   * Set when the citation-verification pass found the cited page does not
+   * support these weaknesses. The UI must not present them as sourced.
+   */
+  weaknessesUnverified?: boolean;
+}
+
+export type FeaturePriority = 'MUST_HAVE' | 'SHOULD_HAVE' | 'LATER';
+
+export interface RecommendedFeaturePayload {
+  feature: string;
+  whyItMattersHere: string;
+  priority: FeaturePriority;
+}
+
+export type RiskSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface ResearchRiskPayload {
+  risk: string;
+  severity: RiskSeverity;
+  mitigation: string;
+}
+
+/**
+ * The 13 report sections.
+ *
+ * Structurally identical to `ResearchReportSections` (the Zod inference on the
+ * backend). Restated here rather than imported because the backend's schema
+ * file is not published to the mobile app, and because this is the shape as it
+ * arrives over JSON.
+ */
+export interface ResearchReportSectionsPayload {
+  ideaSummary: string;
+  assumptions: string[];
+  problemStatement: string;
+  targetUsers: string[];
+  comparableProducts: ComparableProductPayload[];
+  featuresWorthAdopting: RecommendedFeaturePayload[];
+  gapsAndOpportunities: ResearchClaim[];
+  recommendedFeatures: RecommendedFeaturePayload[];
+  differentiators: string[];
+  mvpScope: {
+    mustHave: string[];
+    shouldHave: string[];
+    later: string[];
+  };
+  technicalFeasibility: {
+    summary: string;
+    suggestedStack: string[];
+    architectureNotes: string[];
+  };
+  risks: ResearchRiskPayload[];
+  roughEffort: string;
+  openQuestions: string[];
+  evidenceGaps: string[];
+  executiveSummary: string;
+}
+
+/**
+ * Per-report citation-verification metrics.
+ *
+ * `ran: false` means the check did not happen (rate limit, nothing to check),
+ * which the UI must distinguish from "ran and found nothing wrong" — otherwise
+ * it would claim verification it never performed.
+ */
+export interface VerificationMetricsPayload {
+  ran: boolean;
+  skippedReason?: string;
+  /** Cited URLs that were not in the retrieved set at all. */
+  inventedCitations: number;
+  checked: number;
+  supported: number;
+  notSupported: number;
+  contradicted: number;
+  demoted: number;
+  /** Names the limitation: excerpt-level, not full-page. */
+  method: string;
+  verifiedAt: string;
+  model: string;
+}
+
+/** One retrieved source, with the date it was fetched. */
+export interface ReportSourcePayload {
+  title: string;
+  url: string;
+  retrievedAt: string;
+}
+
+/**
+ * A full report row.
+ *
+ * `sections` and `sources` are null while PENDING and on FAILED, which is why
+ * they are nullable rather than optional — the UI must branch on status, not
+ * assume the payload is there.
+ */
+export interface ResearchReportPayload {
+  id: ResearchReport['id'];
+  projectId: Project['id'];
+  version: number;
+  status: ResearchReportStatus;
+  sections: ResearchReportSectionsPayload | null;
+  sources: ReportSourcePayload[] | null;
+  /** Null on reports generated before verification existed. */
+  verification: VerificationMetricsPayload | null;
+  /** ISO string; null until generation finishes. */
+  researchedAt: string | null;
+  model: string | null;
+  /** Set only on FAILED rows, so the UI can explain rather than hang. */
+  error: string | null;
+  /** Why the user rejected this version, when they gave a reason. */
+  rejectionReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Metadata only — the version list omits the bulky sections payload. */
+export interface ResearchReportVersionPayload {
+  id: ResearchReport['id'];
+  version: number;
+  status: ResearchReportStatus;
+  researchedAt: string | null;
+  model: string | null;
+  error: string | null;
+  rejectionReason: string | null;
+  createdAt: string;
+}
+
+/** The queued row, returned immediately; generation takes 60-100s. */
+export interface RequestResearchReportPayload {
+  id: ResearchReport['id'];
+  version: number;
+  status: ResearchReportStatus;
+}
+
+export type RequestResearchReportResponse = ApiResponse<RequestResearchReportPayload>;
+/** Null when the project has no report yet. */
+export type GetResearchReportResponse = ApiResponse<ResearchReportPayload | null>;
+export type GetResearchReportVersionsResponse = ApiResponse<ResearchReportVersionPayload[]>;
+export type ApproveResearchReportResponse = ApiResponse<RequestResearchReportPayload>;
+export type RejectResearchReportResponse = ApiResponse<RequestResearchReportPayload>;
+export type CancelResearchReportResponse = ApiResponse<RequestResearchReportPayload>;
+
+/**
+ * Maturity of the discovery-report feature.
+ *
+ * Surfaced in the UI rather than kept in documentation: the citation
+ * verification is excerpt-level and LLM-judged, so a reader should know the
+ * output is reviewed-but-not-guaranteed before acting on it.
+ */
+export const RESEARCH_REPORT_STAGE = 'beta' as const;

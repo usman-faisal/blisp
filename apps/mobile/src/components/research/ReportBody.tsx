@@ -1,0 +1,366 @@
+import Text from '@/components/ui/Text';
+import type {
+  VerificationMetricsPayload,
+  ComparableProductPayload,
+  RecommendedFeaturePayload,
+  ReportSourcePayload,
+  ResearchClaim,
+  ResearchReportSectionsPayload,
+  ResearchRiskPayload,
+} from '@repo/types';
+import { Ionicons } from '@expo/vector-icons';
+import { View } from 'react-native';
+import { EvidenceBadge, PriorityBadge, SeverityBadge, SourceLink } from './EvidenceBadge';
+import { Bullet, ReportSection, SubLabel } from './ReportSection';
+import { VerificationPanel } from './VerificationPanel';
+
+/** A claim with its evidence badge and, when VERIFIED, its source. */
+function ClaimRow({ claim }: { claim: ResearchClaim }) {
+  return (
+    <View className="mt-3 border-l-2 border-semantic-border pl-3">
+      <View className="flex-row items-center gap-x-2">
+        <EvidenceBadge kind={claim.kind} />
+        {claim.sourceUrl && <SourceLink url={claim.sourceUrl} />}
+      </View>
+      <Text className="mt-1.5 text-[13px] leading-5 text-core-text-primary">{claim.text}</Text>
+    </View>
+  );
+}
+
+function FeatureRow({ feature }: { feature: RecommendedFeaturePayload }) {
+  return (
+    <View className="mt-3 rounded-xl bg-core-background p-3">
+      <View className="flex-row items-start justify-between gap-x-2">
+        <Text className="flex-1 text-[13px] font-semibold leading-5 text-core-text-primary">
+          {feature.feature}
+        </Text>
+        <PriorityBadge priority={feature.priority} />
+      </View>
+      {/* The "why" is what makes this a recommendation rather than a list —
+          the backend requires it, so it is always rendered. */}
+      <Text className="mt-1.5 text-xs leading-[18px] text-core-text-secondary">
+        {feature.whyItMattersHere}
+      </Text>
+    </View>
+  );
+}
+
+function ComparableProductRow({ product }: { product: ComparableProductPayload }) {
+  return (
+    <View className="mt-3 rounded-xl bg-core-background p-3">
+      <View className="flex-row items-center justify-between gap-x-2">
+        <Text className="flex-1 text-[13px] font-semibold text-core-text-primary">{product.name}</Text>
+        {product.sourceUrl && <SourceLink url={product.sourceUrl} />}
+      </View>
+
+      {product.whatItDoesWell.length > 0 && (
+        <>
+          <SubLabel text="Does well" />
+          {product.whatItDoesWell.map((item, i) => (
+            <View key={`${item}-${i}`} className="mt-1.5 flex-row gap-x-2">
+              <Ionicons name="checkmark" size={12} color="#4A8C68" style={{ marginTop: 3 }} />
+              <Text className="flex-1 text-xs leading-[18px] text-core-text-secondary">{item}</Text>
+            </View>
+          ))}
+        </>
+      )}
+
+      {/* Weaknesses are where the opportunity is, so they are never hidden
+          behind a further tap. But when the citation check found the cited page
+          does not back them, they are labelled as the model's own reading
+          rather than left to inherit the card's source link. */}
+      {product.weaknesses.length > 0 && (
+        <>
+          <SubLabel
+            text={product.weaknessesUnverified ? 'Falls short (unverified)' : 'Falls short'}
+          />
+          {product.weaknessesUnverified && (
+            <Text className="mt-1 text-[10px] leading-4 text-core-text-disabled">
+              Not stated by the cited page — the model's own assessment.
+            </Text>
+          )}
+          {product.weaknesses.map((item, i) => (
+            <View key={`${item}-${i}`} className="mt-1.5 flex-row gap-x-2">
+              <Ionicons name="close" size={12} color="#D94F3D" style={{ marginTop: 3 }} />
+              <Text className="flex-1 text-xs leading-[18px] text-core-text-secondary">{item}</Text>
+            </View>
+          ))}
+        </>
+      )}
+    </View>
+  );
+}
+
+function RiskRow({ risk }: { risk: ResearchRiskPayload }) {
+  return (
+    <View className="mt-3 rounded-xl bg-core-background p-3">
+      <SeverityBadge severity={risk.severity} />
+      <Text className="mt-1.5 text-[13px] font-semibold leading-5 text-core-text-primary">
+        {risk.risk}
+      </Text>
+      <View className="mt-1.5 flex-row gap-x-2">
+        <Ionicons name="shield-checkmark-outline" size={12} color="#6A8F7A" style={{ marginTop: 3 }} />
+        <Text className="flex-1 text-xs leading-[18px] text-core-text-secondary">
+          {risk.mitigation}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+interface ReportBodyProps {
+  sections: ResearchReportSectionsPayload;
+  sources: ReportSourcePayload[] | null;
+  verification: VerificationMetricsPayload | null;
+}
+
+/**
+ * The 13 report sections.
+ *
+ * Order follows the schema: the executive summary leads and is the only
+ * section open by default, because it is written to stand alone for someone who
+ * reads nothing else. Everything after it is collapsed detail.
+ *
+ * Every list is length-checked before rendering. Several are guaranteed
+ * non-empty by the backend schema, but a report generated by an older version,
+ * or a hand-edited row, should degrade to a hidden section rather than an
+ * empty card.
+ */
+export function ReportBody({ sections, sources, verification }: ReportBodyProps) {
+  return (
+    <View>
+      {/* Executive summary — always visible, no card chrome competing with it. */}
+      <View className="mt-4 rounded-2xl bg-brand-ember-mist p-4">
+        <View className="flex-row items-center gap-x-2">
+          <Ionicons name="sparkles" size={13} color="#E8612A" />
+          <Text className="text-[10px] font-semibold uppercase tracking-wide text-brand-ember">
+            In short
+          </Text>
+        </View>
+        <Text className="mt-2 text-sm leading-[22px] text-core-text-primary">
+          {sections.executiveSummary}
+        </Text>
+      </View>
+
+      {/* 1. The idea as understood — so a misreading is caught immediately. */}
+      <ReportSection title="Your idea, as understood" icon="document-text-outline">
+        <Text className="mt-2 text-[13px] leading-5 text-core-text-primary">
+          {sections.ideaSummary}
+        </Text>
+        {sections.assumptions.length > 0 && (
+          <>
+            <SubLabel text="Assumptions made" />
+            {sections.assumptions.map((item, i) => (
+              <Bullet key={`${item}-${i}`} text={item} tone="secondary" />
+            ))}
+          </>
+        )}
+      </ReportSection>
+
+      {/* 2. Problem and audience. */}
+      <ReportSection title="Problem and who it's for" icon="people-outline">
+        <Text className="mt-2 text-[13px] leading-5 text-core-text-primary">
+          {sections.problemStatement}
+        </Text>
+        {sections.targetUsers.length > 0 && (
+          <>
+            <SubLabel text="Target users" />
+            {sections.targetUsers.map((item, i) => (
+              <Bullet key={`${item}-${i}`} text={item} />
+            ))}
+          </>
+        )}
+      </ReportSection>
+
+      {/* 3 + 4. What already exists. */}
+      {sections.comparableProducts.length > 0 && (
+        <ReportSection
+          title="What already exists"
+          icon="albums-outline"
+          badge={sections.comparableProducts.length}
+        >
+          {sections.comparableProducts.map((product, i) => (
+            <ComparableProductRow key={`${product.name}-${i}`} product={product} />
+          ))}
+        </ReportSection>
+      )}
+
+      {/* 5. Worth borrowing. */}
+      {sections.featuresWorthAdopting.length > 0 && (
+        <ReportSection
+          title="Worth borrowing"
+          icon="color-wand-outline"
+          badge={sections.featuresWorthAdopting.length}
+        >
+          {sections.featuresWorthAdopting.map((feature, i) => (
+            <FeatureRow key={`${feature.feature}-${i}`} feature={feature} />
+          ))}
+        </ReportSection>
+      )}
+
+      {/* 6. Gaps — the only section that is a list of tagged claims. */}
+      {sections.gapsAndOpportunities.length > 0 && (
+        <ReportSection
+          title="Gaps and opportunities"
+          icon="search-outline"
+          badge={sections.gapsAndOpportunities.length}
+        >
+          {sections.gapsAndOpportunities.map((claim, i) => (
+            <ClaimRow key={`${claim.text}-${i}`} claim={claim} />
+          ))}
+        </ReportSection>
+      )}
+
+      {/* 7. The recommendation — expanded, since it is the actionable part. */}
+      {sections.recommendedFeatures.length > 0 && (
+        <ReportSection
+          title="What to build"
+          icon="construct-outline"
+          badge={sections.recommendedFeatures.length}
+          defaultExpanded
+        >
+          {sections.recommendedFeatures.map((feature, i) => (
+            <FeatureRow key={`${feature.feature}-${i}`} feature={feature} />
+          ))}
+        </ReportSection>
+      )}
+
+      {/* 8. Differentiators. */}
+      {sections.differentiators.length > 0 && (
+        <ReportSection
+          title="How yours can be different"
+          icon="ribbon-outline"
+          badge={sections.differentiators.length}
+        >
+          {sections.differentiators.map((item, i) => (
+            <Bullet key={`${item}-${i}`} text={item} />
+          ))}
+        </ReportSection>
+      )}
+
+      {/* 9. MVP scope. */}
+      <ReportSection title="MVP scope" icon="flag-outline">
+        {sections.mvpScope.mustHave.length > 0 && (
+          <>
+            <SubLabel text="Must have" />
+            {sections.mvpScope.mustHave.map((item, i) => (
+              <Bullet key={`${item}-${i}`} text={item} />
+            ))}
+          </>
+        )}
+        {sections.mvpScope.shouldHave.length > 0 && (
+          <>
+            <SubLabel text="Should have" />
+            {sections.mvpScope.shouldHave.map((item, i) => (
+              <Bullet key={`${item}-${i}`} text={item} tone="secondary" />
+            ))}
+          </>
+        )}
+        {sections.mvpScope.later.length > 0 && (
+          <>
+            <SubLabel text="Later" />
+            {sections.mvpScope.later.map((item, i) => (
+              <Bullet key={`${item}-${i}`} text={item} tone="secondary" />
+            ))}
+          </>
+        )}
+      </ReportSection>
+
+      {/* 10. Feasibility. */}
+      <ReportSection title="Can you build it" icon="hammer-outline">
+        <Text className="mt-2 text-[13px] leading-5 text-core-text-primary">
+          {sections.technicalFeasibility.summary}
+        </Text>
+        {sections.technicalFeasibility.suggestedStack.length > 0 && (
+          <>
+            <SubLabel text="Suggested stack" />
+            <View className="mt-2 flex-row flex-wrap gap-2">
+              {sections.technicalFeasibility.suggestedStack.map((tech, i) => (
+                <View key={`${tech}-${i}`} className="rounded-full bg-core-background px-3 py-1">
+                  <Text className="text-xs font-medium text-core-text-secondary">{tech}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+        {sections.technicalFeasibility.architectureNotes.length > 0 && (
+          <>
+            <SubLabel text="Architecture notes" />
+            {sections.technicalFeasibility.architectureNotes.map((item, i) => (
+              <Bullet key={`${item}-${i}`} text={item} tone="secondary" />
+            ))}
+          </>
+        )}
+      </ReportSection>
+
+      {/* 11. Risks and effort. */}
+      <ReportSection
+        title="Risks and effort"
+        icon="warning-outline"
+        badge={sections.risks.length || undefined}
+      >
+        <View className="mt-2 flex-row items-center gap-x-2 rounded-xl bg-core-background p-3">
+          <Ionicons name="time-outline" size={14} color="#6B6560" />
+          <Text className="flex-1 text-[13px] leading-5 text-core-text-primary">
+            {sections.roughEffort}
+          </Text>
+        </View>
+        {sections.risks.map((risk, i) => (
+          <RiskRow key={`${risk.risk}-${i}`} risk={risk} />
+        ))}
+      </ReportSection>
+
+      {/* 12. Open questions. */}
+      {sections.openQuestions.length > 0 && (
+        <ReportSection
+          title="Questions to settle"
+          icon="help-circle-outline"
+          badge={sections.openQuestions.length}
+        >
+          {sections.openQuestions.map((item, i) => (
+            <Bullet key={`${item}-${i}`} text={item} />
+          ))}
+        </ReportSection>
+      )}
+
+      {/* 13. Evidence gaps — deliberately not hidden or softened. A report that
+          claims more certainty than it has is worse than one that admits the
+          limits of four web searches. */}
+      {sections.evidenceGaps.length > 0 && (
+        <ReportSection
+          title="What this research did not cover"
+          icon="alert-circle-outline"
+          badge={sections.evidenceGaps.length}
+        >
+          <Text className="mt-2 text-xs leading-[18px] text-core-text-secondary">
+            This report is based on a handful of web searches. It cannot establish that an idea is
+            original, and the following were not verified:
+          </Text>
+          {sections.evidenceGaps.map((item, i) => (
+            <Bullet key={`${item}-${i}`} text={item} tone="secondary" />
+          ))}
+        </ReportSection>
+      )}
+
+      {/* How the citations were checked. Placed next to the sources, since
+          the two answer the same question: how far can this be trusted. */}
+      <VerificationPanel verification={verification} sourceCount={sources?.length ?? 0} />
+
+      {/* Sources. Every link here was actually retrieved. */}
+      {sources && sources.length > 0 && (
+        <ReportSection title="Sources" icon="link-outline" badge={sources.length}>
+          {sources.map((source, i) => (
+            <View key={`${source.url}-${i}`} className="mt-3 rounded-xl bg-core-background p-3">
+              <Text className="text-xs font-medium leading-[18px] text-core-text-primary">
+                {source.title}
+              </Text>
+              <View className="mt-1.5">
+                <SourceLink url={source.url} />
+              </View>
+            </View>
+          ))}
+        </ReportSection>
+      )}
+    </View>
+  );
+}

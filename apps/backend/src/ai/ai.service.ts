@@ -2,7 +2,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { generateText, LanguageModel, Output } from 'ai';
+import { NoOutputGeneratedError, generateText, LanguageModel, Output } from 'ai';
 import { TavilyResult } from 'src/common/types/type';
 import { ZodType } from 'zod';
 
@@ -16,6 +16,12 @@ export class AiService {
    * rate-limit, so 0 means a single 429 kills the whole brain dump.
    */
   private readonly maxRetries: number;
+
+  /**
+   * Provider-specific request options, set once at boot. Chiefly reasoning
+   * effort — see the note in the constructor.
+   */
+  private readonly providerOptions?: Record<string, Record<string, string>>;
 
   /**
    * The selected model's id, for recording which model produced a stored
@@ -79,6 +85,26 @@ export class AiService {
       this.model = openrouter(OPENROUTER_MODEL);
     }
 
+    if (provider === 'groq') {
+      const GROQ_API_KEY = this.configService.get<string>('GROQ_API_KEY');
+      if (!GROQ_API_KEY) {
+        throw new Error('GROQ_API_KEY is not set in the environment variables');
+      }
+
+      const groq = createOpenAICompatible({
+        name: 'groq',
+        baseURL: 'https://api.groq.com/openai/v1',
+        apiKey: GROQ_API_KEY,
+        supportsStructuredOutputs: true,
+      });
+
+      // Defaults to gpt-oss-120b because it is one of the few free-tier models
+      // with *strict* JSON-schema mode, which every call here depends on.
+      // Models without it fall back to best-effort JSON and fail validation
+      // intermittently — worse than failing outright.
+      this.model = groq(this.configService.get<string>('GROQ_MODEL') ?? 'openai/gpt-oss-120b');
+    }
+
     if (provider === 'gemini') {
       const GEMINI_API_KEY = this.configService.get<string>('GEMINI_API_KEY');
       if (!GEMINI_API_KEY) {
@@ -94,8 +120,24 @@ export class AiService {
     // undefined and the failure surfaces much later, inside a queue job, as a
     // confusing error rather than at boot.
     if (!this.model) {
-      throw new Error(`AI_PROVIDER must be "github", "gemini" or "openrouter" (received: ${provider ?? 'unset'}).`);
+      throw new Error(
+        `AI_PROVIDER must be "github", "gemini", "openrouter" or "groq" (received: ${provider ?? 'unset'}).`,
+      );
     }
+
+    // Groq's gpt-oss models are reasoning models: they spend part of the output
+    // budget on hidden reasoning tokens before emitting any JSON. Measured at
+    // default effort that was 1,129 tokens of a 4,000 budget, and on a longer
+    // run it consumed the whole allowance and returned no document at all
+    // ("No output generated"). At "low" it drops to ~359 tokens AND produces
+    // more actual content, so this is both more reliable and more useful.
+    //
+    // Provider-scoped because the key is only meaningful to an
+    // OpenAI-compatible provider that supports it; Gemini ignores it.
+    this.providerOptions =
+      provider === 'groq' || provider === 'github' || provider === 'openrouter'
+        ? { [provider]: { reasoningEffort: this.configService.get<string>('AI_REASONING_EFFORT') ?? 'low' } }
+        : undefined;
 
     // Read back off the model rather than repeating the fallback ids above, so
     // this cannot drift from what was actually selected. Otherwise the only
@@ -110,20 +152,53 @@ export class AiService {
     schema: ZodType<T>,
     schemaName: string,
     systemPrompt?: string,
+    /**
+     * Output allowance. Worth setting for any schema large enough that the
+     * response could be truncated: providers may otherwise clamp the limit to
+     * whatever is left in the rate-limit window, and a document cut off
+     * mid-field fails schema validation with a non-retryable error.
+     */
+    maxOutputTokens?: number,
   ): Promise<T> {
-    try {
-      const response = await generateText({
-        model: this.model,
-        prompt,
-        output: Output.object({ schema, name: schemaName }),
-        system: systemPrompt,
-        maxRetries: this.maxRetries,
-      });
-      return response.output;
-    } catch (error) {
-      console.error('Error generating structured data:', error);
-      throw new InternalServerErrorException('Failed to generate structured data');
+    // One in-process retry for an empty response.
+    //
+    // A reasoning model's hidden reasoning competes with the document for the
+    // output budget, and its length varies between otherwise identical runs: an
+    // observed run spent 1,129 tokens reasoning and succeeded, while another
+    // consumed the whole allowance and returned nothing. The AI SDK's own
+    // `maxRetries` does not cover this, because the HTTP call succeeded — the
+    // response was simply empty — so without this a normal run-to-run variation
+    // loses a report that cost four web searches to assemble.
+    const attempts = 2;
+
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const response = await generateText({
+          model: this.model,
+          prompt,
+          output: Output.object({ schema, name: schemaName }),
+          system: systemPrompt,
+          maxRetries: this.maxRetries,
+          maxOutputTokens,
+          providerOptions: this.providerOptions,
+        });
+        return response.output;
+      } catch (error) {
+        // The SDK's own type guard, rather than matching on error.name.
+        const isEmptyOutput = NoOutputGeneratedError.isInstance(error);
+
+        if (isEmptyOutput && attempt < attempts) {
+          this.logger.warn(`${schemaName}: model returned no output, retrying (attempt ${attempt + 1}/${attempts})`);
+          continue;
+        }
+
+        this.logger.error(`Error generating ${schemaName}:`, error);
+        throw new InternalServerErrorException('Failed to generate structured data');
+      }
     }
+
+    // Unreachable: the loop either returns or throws.
+    throw new InternalServerErrorException('Failed to generate structured data');
   }
 
   async generateText(prompt: string): Promise<string> {
@@ -131,6 +206,7 @@ export class AiService {
       const response = await generateText({
         model: this.model,
         prompt,
+        providerOptions: this.providerOptions,
       });
       return response.text;
     } catch (error) {
@@ -174,6 +250,56 @@ export class AiService {
     } catch (error) {
       console.error('Tavily Search Error:', error);
       return [];
+    }
+  }
+
+  /**
+   * Like `search`, but says whether the call actually failed.
+   *
+   * `search` collapses "the search worked and found nothing" and "the search
+   * could not be reached" into the same empty array. For a report whose whole
+   * value is its evidence that distinction matters: a transient DNS failure
+   * (EAI_AGAIN) once produced a report with zero sources that was saved as a
+   * normal draft, indistinguishable from a properly sourced one.
+   *
+   * Kept as a separate method so the existing callers, where an empty result is
+   * genuinely harmless, keep their current behaviour.
+   */
+  async searchWithStatus(
+    query: string,
+    depth: 'basic' | 'advanced' = 'basic',
+  ): Promise<{ results: TavilyResult[]; failed: boolean }> {
+    const TAVILY_API_KEY = this.configService.get<string>('TAVILY_API_KEY');
+    if (!TAVILY_API_KEY) {
+      this.logger.warn('TAVILY_API_KEY is not set. Skipping search.');
+      return { results: [], failed: true };
+    }
+
+    try {
+      const response = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: TAVILY_API_KEY,
+          query,
+          search_depth: depth,
+          include_answer: false,
+          max_results: depth === 'advanced' ? 5 : 3,
+        }),
+      });
+
+      if (!response.ok) {
+        this.logger.warn(`Tavily returned ${response.status} for query: "${query}"`);
+        return { results: [], failed: true };
+      }
+
+      const data = (await response.json()) as { results?: TavilyResult[] } | null;
+      // An empty result set from a 200 is a real answer, not a failure.
+      return { results: data?.results ?? [], failed: false };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Tavily search failed for "${query}": ${message}`);
+      return { results: [], failed: true };
     }
   }
 }

@@ -56,12 +56,34 @@ export interface ResearchPromptInput {
   searchContext: string;
   /** ISO date the research ran, so the model can date its claims. */
   researchDate: string;
+  /**
+   * Why the user rejected the most recent version, when they said. Included so
+   * a regeneration addresses the complaint instead of reproducing it.
+   */
+  rejectionFeedback?: string;
 }
 
 export function buildResearchPrompt(input: ResearchPromptInput): string {
-  const { title, description, techStack, rawTranscript, searchContext, researchDate } = input;
+  const { title, description, techStack, rawTranscript, searchContext, researchDate, rejectionFeedback } = input;
 
-  return `Produce a product discovery report for this idea.
+  // Placed first rather than appended: late instructions in a long prompt carry
+  // less weight, and this is the one thing the user explicitly asked to be
+  // different this time.
+  const feedbackBlock = rejectionFeedback
+    ? `THE USER REJECTED YOUR PREVIOUS ATTEMPT
+They said:
+"""
+${rejectionFeedback}
+"""
+Address this directly in this version and do not repeat the problem they named.
+This is their judgement of your previous output, not a change to the idea: the
+idea below is unchanged and every rule above still applies. In particular, a
+rejection is never a reason to recommend against building.
+
+`
+    : '';
+
+  return `${feedbackBlock}Produce a product discovery report for this idea.
 
 THE IDEA
 Title: ${title}
@@ -79,6 +101,11 @@ WHAT TO PRODUCE
 Fill every field of the schema. Specifically:
 - comparableProducts: real products from the search results, with both their
   genuine strengths and their real weaknesses. Do not pad with invented ones.
+  Some of the results above are reviews and complaint threads about specific
+  products — take weaknesses from those and cite them. If no result documents a
+  product's weaknesses, leave its weaknesses list short or empty rather than
+  supplying them from your own knowledge: an uncited weakness will be stripped
+  of its citation and marked unverified.
 - featuresWorthAdopting: the strongest ideas from those products worth borrowing.
 - recommendedFeatures: what THIS person should build, each with a priority and a
   concrete reason it matters for their target user.
@@ -89,11 +116,15 @@ Fill every field of the schema. Specifically:
 }
 
 /**
- * The four searches behind one report.
+ * The four broad searches that open a report.
  *
  * Four at basic depth is a deliberate budget: enough to source every section
  * while keeping Tavily credits and latency bounded. Each targets a different
  * section so the evidence is spread rather than redundant.
+ *
+ * These return overviews and listicles, which cover products' strengths well
+ * and their weaknesses hardly at all — see buildCriticismQueries for why that
+ * matters and what fixes it.
  */
 export function buildSearchQueries(title: string, description: string, techStack: string[]): string[] {
   const idea = `${title} ${description}`.trim().slice(0, 240);
@@ -109,4 +140,53 @@ export function buildSearchQueries(title: string, description: string, techStack
     // Market gaps → gapsAndOpportunities, differentiators
     `limitations and missing features in current ${title} solutions`,
   ];
+}
+
+/** Products the first pass named, worth searching for criticism of. */
+export const MAX_CRITICISM_QUERIES = 3;
+
+/**
+ * Follow-up searches for criticism of specific named products.
+ *
+ * The reason this exists: the schema requires each comparable product's "real
+ * weaknesses", but the broad queries above return listicles and vendor pages,
+ * which list features and almost never shortcomings. With no sourced weaknesses
+ * available, the model supplied them from its own knowledge while carrying over
+ * the URL that backed the strengths — so the citation implied support the page
+ * did not give. Verification then (correctly) withdrew nearly every one.
+ *
+ * Measured, not assumed: "limitations and missing features in current Basic Todo
+ * App solutions" returned only overviews, while "Microsoft To Do complaints
+ * limitations" returned a comparison page listing "No native Kanban or Gantt
+ * view, limited customization, high dependence on the Microsoft ecosystem" and
+ * a Microsoft Q&A thread of user-reported limits. Naming the product is what
+ * makes its weaknesses citable.
+ *
+ * Capped at three because this runs in addition to the four broad searches, and
+ * Tavily's free tier is the binding constraint.
+ */
+export function buildCriticismQueries(productNames: string[]): string[] {
+  return productNames
+    .map((name) => name.trim())
+    .filter((name) => name.length > 1)
+    .slice(0, MAX_CRITICISM_QUERIES)
+    .map((name) => `${name} review problems complaints limitations what users dislike`);
+}
+
+/**
+ * Asks only for the product names, so the criticism searches know what to look
+ * for. Deliberately cheap: no analysis, just the shortlist.
+ */
+export function buildProductShortlistPrompt(title: string, description: string, searchContext: string): string {
+  return `From the search results below, list the real, existing products that compete with or resemble this idea.
+
+THE IDEA
+${title}${description ? `\n${description}` : ''}
+
+SEARCH RESULTS
+${searchContext || '(none)'}
+
+Name only products that actually appear in the results. Do not invent any, and
+do not include generic categories, tutorials, articles or the idea itself —
+only named products. At most ${MAX_CRITICISM_QUERIES} of the most relevant.`;
 }
