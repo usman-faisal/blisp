@@ -4,6 +4,7 @@ import { User } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
 import { DeferTasksDto } from './dto/defer-tasks.dto';
+import { GenerateRoadmapDto } from './dto/generate-roadmap.dto';
 import { SetMilestoneStatusDto } from './dto/set-milestone-status.dto';
 import { UpdateRoadmapSettingsDto } from './dto/update-roadmap-settings.dto';
 import { RoadmapService } from './roadmap.service';
@@ -33,6 +34,45 @@ export class RoadmapController {
     const data = await this.roadmapService.getRoadmap(user.id, projectId);
 
     return { data, message: 'Roadmap retrieved.', success: true };
+  }
+
+  @Get('suggested-scope')
+  @ApiOperation({
+    summary: 'Scope suggested from the approved discovery report',
+    description:
+      'Only an APPROVED report is used, and every item is editable before planning. Returns an ' +
+      'empty list when there is no approved report — the user can still enter scope themselves.',
+  })
+  @ApiParam({ name: 'projectId', description: 'Project UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Suggested scope retrieved.' })
+  async getSuggestedScope(@CurrentUser() user: User, @Param('projectId', ParseUUIDPipe) projectId: string) {
+    const data = await this.roadmapService.suggestScope(user.id, projectId);
+
+    return { data, message: 'Suggested scope retrieved.', success: true };
+  }
+
+  @Post('generate')
+  @ApiOperation({
+    summary: 'Build the roadmap from confirmed scope',
+    description:
+      'Replaces the milestone structure. Existing tasks are unlinked rather than deleted, so ' +
+      'completed work is preserved.',
+  })
+  @ApiParam({ name: 'projectId', description: 'Project UUID', type: String })
+  @ApiResponse({ status: 201, description: 'Roadmap generated.' })
+  @ApiResponse({ status: 400, description: 'No scope given.' })
+  async generate(
+    @CurrentUser() user: User,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Body() dto: GenerateRoadmapDto,
+  ) {
+    const data = await this.roadmapService.generateRoadmap(
+      user.id,
+      projectId,
+      dto.scope.map((item) => ({ ...item, fromReport: item.fromReport ?? false })),
+    );
+
+    return { data, message: `Roadmap built with ${data.milestones.length} milestone(s).`, success: true };
   }
 
   @Get('today')
