@@ -27,6 +27,46 @@ enum TaskStatus {
   TODO
   IN_PROGRESS
   DONE
+  /// Dropped from scope. Excluded from completion percentages entirely rather
+  /// than counted as incomplete — otherwise cancelling work makes a project
+  /// look like it is falling behind, which the plan explicitly forbids.
+  CANCELLED
+  /// Pushed out of the current plan but still intended. Also excluded from
+  /// percentages, and distinct from CANCELLED so the user can tell "later"
+  /// from "never".
+  DEFERRED
+}
+
+/// Rough effort, used to weight progress.
+///
+/// A coarse scale rather than hour estimates: a beginner cannot estimate hours
+/// reliably, and false precision would make the roadmap look authoritative when
+/// it is not. Points are assigned in TASK_EFFORT_POINTS.
+enum TaskEffort {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum TaskPriority {
+  MUST_HAVE
+  SHOULD_HAVE
+  LATER
+}
+
+/// Self-reported experience, used to pad estimates rather than to gate features.
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum MilestoneStatus {
+  PLANNED
+  IN_PROGRESS
+  DONE
+  /// Excluded from progress for the same reason as a cancelled task.
+  CANCELLED
 }
 
 enum BrainDumpStatus {
@@ -104,23 +144,23 @@ enum NotificationType {
 }
 
 model User {
-  id               String         @id @unique
+  id               String   @id @unique
   name             String
-  email            String         @unique
-  hasNotifications Boolean        @default(false)
-  createdAt        DateTime       @default(now())
+  email            String   @unique
+  hasNotifications Boolean  @default(false)
+  createdAt        DateTime @default(now())
 
-  notifications    Notification[] @relation("UserNotifications")
-  brainDumps       BrainDump[]
-  projects         Project[]
-  dailyPlans       DailyPlan[]
+  notifications Notification[] @relation("UserNotifications")
+  brainDumps    BrainDump[]
+  projects      Project[]
+  dailyPlans    DailyPlan[]
 
-  projectMembers   ProjectMember[]
-  invitesCreated   ProjectInvite[] @relation("InviteCreator")
-  invitesAccepted  ProjectInvite[] @relation("InviteJoiner")
-  invitesReceived  ProjectInvite[] @relation("InviteRecipient")
-  assignedTasks    Task[]          @relation("TaskAssignee")
-  taskComments     TaskComment[]
+  projectMembers  ProjectMember[]
+  invitesCreated  ProjectInvite[] @relation("InviteCreator")
+  invitesAccepted ProjectInvite[] @relation("InviteJoiner")
+  invitesReceived ProjectInvite[] @relation("InviteRecipient")
+  assignedTasks   Task[]          @relation("TaskAssignee")
+  taskComments    TaskComment[]
 
   @@index([name])
   @@index([email])
@@ -140,14 +180,14 @@ model Notification {
   // Nullable timestamp rather than a `read` boolean: same storage, and it
   // answers "when" for free. Null means unread, so existing rows need no
   // backfill — they are correctly unread on arrival.
-  readAt    DateTime?        @map("read_at")
+  readAt DateTime? @map("read_at")
 
   // A typed FK, not a generic entityId/entityType pair, specifically to get
   // this cascade: revoking an invite removes the notification carrying its
   // accept/decline buttons. A string column could not, and would leave a row
   // whose action 404s.
-  inviteId  String?          @map("invite_id") @db.Uuid
-  invite    ProjectInvite?   @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  inviteId String?        @map("invite_id") @db.Uuid
+  invite   ProjectInvite? @relation(fields: [inviteId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   // Drives the unread count, which is read on every notification-list load.
@@ -162,8 +202,8 @@ model BrainDump {
   processedAt   DateTime?       @map("processed_at")
   createdAt     DateTime        @default(now()) @map("created_at")
 
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projects      Project[]
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects Project[]
 
   @@map("brain_dumps")
 }
@@ -187,10 +227,23 @@ model Project {
 
   // userId above stays the creator: brain dumps, research jobs and pipeline
   // events are all per-user. Membership governs access; userId governs origin.
-  members        ProjectMember[]
-  invites        ProjectInvite[]
+  members ProjectMember[]
+  invites ProjectInvite[]
 
   researchReports ResearchReport[]
+  milestones      Milestone[]
+
+  /// Roadmap planning inputs, captured once per project rather than on the
+  /// user: someone may have a tight deadline on one project and none on
+  /// another. All optional — a project without them simply has no roadmap yet.
+  deadline         DateTime?   @db.Date
+  /// Hours the user expects to work on this project on a working day.
+  hoursPerDay      Float?      @map("hours_per_day")
+  /// ISO weekdays the user works, 1 = Monday .. 7 = Sunday. Empty means unset.
+  workingDays      Int[]       @map("working_days")
+  skillLevel       SkillLevel? @map("skill_level")
+  /// When the roadmap was last generated, so the UI can offer to refresh it.
+  roadmapPlannedAt DateTime?   @map("roadmap_planned_at")
 
   @@map("projects")
 }
@@ -202,8 +255,8 @@ model ProjectMember {
   role      ProjectRole @default(MEMBER)
   joinedAt  DateTime    @default(now()) @map("joined_at")
 
-  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, userId])
   @@index([userId])
@@ -211,13 +264,13 @@ model ProjectMember {
 }
 
 model ProjectInvite {
-  id        String    @id @default(uuid()) @db.Uuid
-  projectId String    @map("project_id") @db.Uuid
+  id        String @id @default(uuid()) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
 
   // Nullable since targeted invites carry no code: minting one anyway would
   // create a second, unintended way into the project. Postgres permits many
   // NULLs under a UNIQUE constraint, so no partial index is needed.
-  code      String?   @unique @db.VarChar(12)
+  code String? @unique @db.VarChar(12)
 
   createdBy String    @map("created_by")
   expiresAt DateTime  @map("expires_at")
@@ -242,14 +295,14 @@ model ProjectInvite {
   createdByName String  @map("created_by_name")
   usedByName    String? @map("used_by_name")
 
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   // Relations so who-invited-whom is readable by joining rather than by
   // eyeballing Clerk ids. Names stay current: no snapshot to go stale.
   // Cascade on the creator (their invites are meaningless without them);
   // SetNull on the joiner so the invite's audit trail survives their removal.
-  creator   User      @relation("InviteCreator", fields: [createdBy], references: [id], onDelete: Cascade)
-  joiner    User?     @relation("InviteJoiner", fields: [usedBy], references: [id], onDelete: SetNull)
+  creator User  @relation("InviteCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  joiner  User? @relation("InviteJoiner", fields: [usedBy], references: [id], onDelete: SetNull)
 
   // The person a targeted invite is addressed to. Cascade: their invites are
   // meaningless once the user is gone.
@@ -285,19 +338,83 @@ model Task {
   createdAt       DateTime   @default(now()) @map("created_at")
   plannedFor      DateTime?  @db.Date
 
+  /// Roadmap fields. All optional: tasks created by the existing brain-dump
+  /// pipeline have none of these, and must keep working unchanged.
+  milestoneId        String?          @map("milestone_id") @db.Uuid
+  /// Null means unestimated. Progress weighting falls back to counting such a
+  /// task as MEDIUM rather than excluding it, so an unestimated task still
+  /// shows up as remaining work.
+  effort             TaskEffort?
+  priority           TaskPriority?
+  /// How the user knows this task is finished. Plain text, one per line.
+  acceptanceCriteria String?          @map("acceptance_criteria") @db.Text
+  /// Tasks that must be DONE before this one can sensibly start. Self-relation
+  /// through an explicit join table, since Prisma cannot express a many-to-many
+  /// on the same model implicitly.
+  dependsOn          TaskDependency[] @relation("DependentTask")
+  dependedOnBy       TaskDependency[] @relation("PrerequisiteTask")
+  /// Set when the status last became DONE, so weekly history and streaks can be
+  /// computed without a separate event log. Cleared if a task is reopened.
+  completedAt        DateTime?        @map("completed_at")
+
   // Null means unclaimed. SetNull on delete so removing a member leaves their
   // tasks in the backlog rather than deleting the team's work.
-  assigneeId      String?    @map("assignee_id")
-  assigneeName    String?    @map("assignee_name")
+  assigneeId   String? @map("assignee_id")
+  assigneeName String? @map("assignee_name")
 
-  project         Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  dailyPlan       DailyPlan? @relation(fields: [dailyPlanId], references: [id])
-  resources       Resource[]
-  assignee        User?      @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  comments        TaskComment[]
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  dailyPlan DailyPlan?    @relation(fields: [dailyPlanId], references: [id])
+  resources Resource[]
+  assignee  User?         @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  comments  TaskComment[]
+  // SetNull rather than Cascade: deleting a milestone must not delete the work
+  // planned under it, only unlink it.
+  milestone Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
 
   @@index([assigneeId])
+  @@index([milestoneId])
+  // Weekly history and streaks scan completions by date.
+  @@index([completedAt])
   @@map("tasks")
+}
+
+/// A dated chunk of a roadmap, grouping tasks between a start and a target.
+model Milestone {
+  id         String          @id @default(uuid()) @db.Uuid
+  projectId  String          @map("project_id") @db.Uuid
+  title      String          @db.VarChar(255)
+  /// 1-based display order, so a roadmap reads top to bottom regardless of dates.
+  position   Int
+  status     MilestoneStatus @default(PLANNED)
+  targetDate DateTime?       @map("target_date") @db.Date
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@unique([projectId, position])
+  @@index([projectId, status])
+  @@map("milestones")
+}
+
+/// An explicit prerequisite edge between two tasks.
+///
+/// A join table rather than an array of ids so the database enforces that both
+/// ends exist and cascades cleanly when either task is deleted.
+model TaskDependency {
+  id             String @id @default(uuid()) @db.Uuid
+  /// The task that is blocked.
+  taskId         String @map("task_id") @db.Uuid
+  /// The task that must finish first.
+  prerequisiteId String @map("prerequisite_id") @db.Uuid
+
+  task         Task @relation("DependentTask", fields: [taskId], references: [id], onDelete: Cascade)
+  prerequisite Task @relation("PrerequisiteTask", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, prerequisiteId])
+  @@index([prerequisiteId])
+  @@map("task_dependencies")
 }
 
 model TaskComment {
@@ -311,8 +428,8 @@ model TaskComment {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([taskId, createdAt])
   @@map("task_comments")
@@ -328,8 +445,8 @@ model Resource {
   summary   String?  @db.Text
   createdAt DateTime @default(now()) @map("created_at")
 
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
   @@map("resources")
 }
@@ -339,11 +456,11 @@ model Resource {
 /// Versioned rather than mutated: regenerating inserts version + 1 and leaves
 /// earlier rows intact, so an APPROVED report can never be silently destroyed.
 model ResearchReport {
-  id           String               @id @default(uuid()) @db.Uuid
-  projectId    String               @map("project_id") @db.Uuid
+  id        String               @id @default(uuid()) @db.Uuid
+  projectId String               @map("project_id") @db.Uuid
   /// 1-based, per project. Unique with projectId.
-  version      Int
-  status       ResearchReportStatus @default(PENDING)
+  version   Int
+  status    ResearchReportStatus @default(PENDING)
 
   /// The report body, shaped by the Zod schema in research.schema.ts. Stored as
   /// JSON because the section set is prompt-defined and will evolve; pinning it
@@ -360,20 +477,20 @@ model ResearchReport {
   verification Json?
 
   /// When the underlying web research ran — a report's claims age.
-  researchedAt DateTime?            @map("researched_at")
+  researchedAt    DateTime? @map("researched_at")
   /// Which model produced this version, for reproducibility.
-  model        String?              @db.VarChar(100)
+  model           String?   @db.VarChar(100)
   /// Populated only when status is FAILED.
-  error        String?              @db.Text
+  error           String?   @db.Text
   /// Why the user rejected this version, when they gave a reason. Fed into the
   /// next version's prompt as stated feedback, so rejecting is productive
   /// rather than only bookkeeping.
-  rejectionReason String?           @map("rejection_reason") @db.Text
+  rejectionReason String?   @map("rejection_reason") @db.Text
 
-  createdAt    DateTime             @default(now()) @map("created_at")
-  updatedAt    DateTime             @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, version])
   @@index([projectId, status])
@@ -387,7 +504,7 @@ model ProjectEvent {
   message   String?       @db.Text
   createdAt DateTime      @default(now()) @map("created_at")
 
-  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@map("project_events")
@@ -400,8 +517,8 @@ model DailyPlan {
   summary   String?  @db.Text
   createdAt DateTime @default(now()) @map("created_at")
 
-  tasks     Task[]
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks Task[]
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, planDate])
   @@map("daily_plans")
