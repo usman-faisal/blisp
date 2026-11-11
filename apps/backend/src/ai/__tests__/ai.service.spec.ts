@@ -51,9 +51,9 @@ describe('AiService — provider selection', () => {
     });
 
     it('refuses to start without an API key', async () => {
-      await expect(
-        buildWith({ AI_PROVIDER: 'openrouter', OPENROUTER_MODEL: 'vendor/some-model' }),
-      ).rejects.toThrow(/OPENROUTER_API_KEY/);
+      await expect(buildWith({ AI_PROVIDER: 'openrouter', OPENROUTER_MODEL: 'vendor/some-model' })).rejects.toThrow(
+        /OPENROUTER_API_KEY/,
+      );
     });
   });
 

@@ -108,7 +108,27 @@ export const researchReportSchema = z.object({
   executiveSummary: z.string().min(1),
 });
 
-export type ResearchReportSections = z.infer<typeof researchReportSchema>;
+/** Exactly what the model returns, before any post-processing. */
+export type GeneratedReportSections = z.infer<typeof researchReportSchema>;
+
+/**
+ * The stored report: what the model produced, plus flags the pipeline adds.
+ *
+ * Kept separate from the generation schema deliberately. Anything optional in
+ * the schema sent to the provider breaks strict JSON-schema mode — Groq rejects
+ * a schema whose `required` array omits any property — and a field the model
+ * never supplies has no business being in its instructions either. So
+ * post-generation annotations are layered on here instead.
+ */
+export type ResearchReportSections = GeneratedReportSections & {
+  comparableProducts: (GeneratedReportSections['comparableProducts'][number] & {
+    /**
+     * Set by the entailment pass when the cited page does not support the
+     * weaknesses listed. The UI must not present those as sourced.
+     */
+    weaknessesUnverified?: boolean;
+  })[];
+};
 
 /** One retrieved source, recorded with the date it was fetched. */
 export interface ReportSource {
@@ -116,3 +136,13 @@ export interface ReportSource {
   url: string;
   retrievedAt: string;
 }
+
+/**
+ * The product shortlist that drives the criticism searches.
+ *
+ * A separate, tiny schema rather than a field on the report: it is asked for
+ * before the report exists, purely to decide what to search for next.
+ */
+export const productShortlistSchema = z.object({
+  products: z.array(z.string()),
+});

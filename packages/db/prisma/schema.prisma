@@ -58,8 +58,18 @@ enum ResearchReportStatus {
   DRAFT
   /// User accepted this version. Regeneration must not overwrite it.
   APPROVED
+  /// User read this version and turned it down. Distinct from DRAFT, which
+  /// means "not yet judged": without this, a report the user disagreed with is
+  /// indistinguishable from one they never opened. Kept readable, with
+  /// `rejectionReason` explaining why, so the next version can address it.
+  REJECTED
   /// Generation failed; `error` explains why. Kept so the UI can show it.
   FAILED
+  /// The user stopped generation before it finished. Distinct from FAILED,
+  /// which means the pipeline broke: nothing went wrong here, so the UI should
+  /// not offer an error or apologise. The row is kept rather than deleted so
+  /// the version history records the attempt.
+  CANCELLED
 }
 
 enum ProjectRole {
@@ -342,6 +352,12 @@ model ResearchReport {
   /// Retrieved sources: [{ title, url, retrievedAt }]. Kept separate from
   /// sections so citations can be validated and rendered independently.
   sources      Json?
+  /// Citation-verification metrics (VerificationMetrics in entailment.schema.ts):
+  /// how many cited claims were checked against their source excerpt and how
+  /// many were demoted. Stored rather than recomputed so a later change to the
+  /// checking logic cannot rewrite the record of an older report. Null on rows
+  /// generated before verification existed, which is distinct from `ran: false`.
+  verification Json?
 
   /// When the underlying web research ran — a report's claims age.
   researchedAt DateTime?            @map("researched_at")
@@ -349,6 +365,10 @@ model ResearchReport {
   model        String?              @db.VarChar(100)
   /// Populated only when status is FAILED.
   error        String?              @db.Text
+  /// Why the user rejected this version, when they gave a reason. Fed into the
+  /// next version's prompt as stated feedback, so rejecting is productive
+  /// rather than only bookkeeping.
+  rejectionReason String?           @map("rejection_reason") @db.Text
 
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")

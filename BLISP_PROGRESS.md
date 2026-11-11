@@ -10,7 +10,7 @@ One milestone at a time: implement, smoke-test, commit, then move on.
 | 0 | Repository audit | — | ✅ Done |
 | 1 | Dashboard | P0 | ✅ Done (pre-existing) |
 | 2 | Voice-to-text idea capture | P0 | ✅ Done — provider key pending |
-| 3 | AI research, report, feature recommendations | P0 | 🟡 Backend done — mobile UI next |
+| 3 | AI research, report, feature recommendations | P0 | ✅ Done — beta ([findings](./DISCOVERY_REPORT_FINDINGS.md)) |
 | 4 | Personalized roadmap and task tracker | P0 | ⬜ Not started |
 | 5 | Notifications and streaks | P0 | 🟡 Partial — in-app done, push missing |
 | 6 | GitHub integration | P1 | ⬜ Not started |
@@ -117,9 +117,15 @@ ref rather than the 1 s interval counter, which was too coarse to judge a tap.
 
 ---
 
-## Milestone 3 — AI research, report and feature recommendations 🟡
+## Milestone 3 — AI research, report and feature recommendations ✅
 
-**Date:** 2026-11-10 · **Backend complete and smoke-tested. Mobile UI outstanding.**
+**Date:** 2026-11-10 (backend) · 2026-11-11 (mobile UI) · 2026-11-12 (verification, beta)
+
+**Marked beta in the UI.** Citation checking is excerpt-level and LLM-judged, so
+the output is reviewed-but-not-guaranteed. See
+[DISCOVERY_REPORT_FINDINGS.md](./DISCOVERY_REPORT_FINDINGS.md) for the full
+engineering record: the citation-verification finding, the 0/7 → 3/4
+measurements, the six provider failures, and the stated limitations.
 
 ### What existed before
 
@@ -214,25 +220,81 @@ two files this milestone touched (`ai.service.ts` 10, `brain-dumps.processor.ts`
 38). Fixed properly by typing the four BullMQ job payloads and narrowing the
 Tavily response, rather than suppressing: **48 → 0**.
 
-### Outstanding — mobile UI
+### Mobile UI (2026-11-11)
 
-The backend is complete; **no mobile work has been done**. Still needed:
+All six recorded items are done.
 
-1. **Report screen** — render the 13 sections with an executive summary first
-   and the detail sections collapsible, per the plan's "do not overwhelm a
-   beginner" rule.
-2. **Evidence badges** — visually distinguish `VERIFIED` / `ANALYSIS` /
-   `RECOMMENDATION`, and make source URLs tappable.
-3. **Generate action** on the project detail screen, with the PENDING state
-   driven by the existing pipeline-event polling (`useProjectPipeline`).
-4. **Version switcher** and an Approve action.
-5. **States**: pending (~60–100s, so progress matters), failed-with-retry,
-   and no-report-yet.
-6. `@repo/types` response types — the controller currently returns inline
-   shapes rather than typed `ApiResponse<T>` envelopes like the other modules.
+| File | Role |
+|---|---|
+| `packages/types/src/index.ts` | +~120 lines: `ResearchReportPayload`, `ResearchReportSectionsPayload` and the 4 `ApiResponse<T>` envelopes (item 6) |
+| `apps/mobile/src/lib/api/research.ts` | 5 typed calls matching the controller's 5 routes |
+| `apps/mobile/src/hooks/useResearchReport.ts` | Load, poll, generate, approve, version select |
+| `apps/mobile/src/components/research/EvidenceBadge.tsx` | Evidence / priority / severity badges + `SourceLink` (item 2) |
+| `apps/mobile/src/components/research/ReportSection.tsx` | Collapsible section, `Bullet`, `SubLabel` |
+| `apps/mobile/src/components/research/ReportBody.tsx` | All 13 sections (item 1) |
+| `apps/mobile/src/components/research/ReportStates.tsx` | Pending / failed / empty / `StatusBadge` / `VersionSwitcher` (items 4, 5) |
+| `apps/mobile/src/app/project/research.tsx` | The screen |
+| `apps/mobile/src/app/project/[id].tsx` | Entry-point card (item 3) |
 
-Generation takes 60–100 seconds, so the UI must not block on the POST: it
-returns a PENDING row and the screen polls.
+### Mobile design decisions
+
+- **Polling lives in the hook, keyed on the report's own `status`**, not on a
+  separate "is generating" flag. A report left `PENDING` by a previous session
+  therefore resumes polling on open. Polls every 4s, and only while following
+  the latest version — an older version is immutable, so polling it is waste.
+- **A 4-minute poll timeout.** Generation takes 60–100s, so a request still
+  unresolved after four minutes almost certainly means the job died without
+  writing `FAILED`. Without this the screen would spin forever on a dead
+  worker. It surfaces as the same retry UI as a real failure, since from the
+  user's side both mean "it did not finish and retrying is safe".
+- **`useProjectPipeline` was not reused** for the PENDING state, contrary to
+  item 3's original note. The report row carries its own `status` and `error`,
+  which is strictly more precise than inferring progress from pipeline events —
+  and it is what distinguishes `FAILED` (show the error, offer retry) from
+  `PENDING`. The pipeline events still record the run for the timeline.
+- **Only the executive summary is expanded by default**, plus "What to build"
+  as the actionable section. The other 11 collapse, per the plan's rule about
+  not overwhelming a beginner with 13 sections at once.
+- **Evidence gaps are rendered prominently, not hidden.** A report that implies
+  more certainty than four web searches can support is worse than one that
+  states its limits.
+- **Every list is length-checked before rendering**, even the ones the backend
+  schema guarantees non-empty — a row written by an older version should
+  degrade to a hidden section, not an empty card. This is not hypothetical:
+  v2 in the dev database has `gapsAndOpportunities: []`.
+- **Approve is offered only on a `DRAFT`.** An `APPROVED` version has nothing
+  to confirm, and the backend rejects approving a `PENDING` or `FAILED` one.
+- **Regenerate resets to "follow the latest"**, or a new version would generate
+  while the screen stayed pinned to an old one.
+- **A 409 is treated as information, not just an error**: the message explains
+  one is already running, and the hook refetches so the user lands on the
+  in-flight report rather than an error with no report in sight.
+
+### Verified
+
+| Check | Result |
+|---|---|
+| `tsc --noEmit` (mobile) | ✅ clean |
+| `tsc --noEmit` (backend, after the `@repo/types` change) | ✅ clean |
+| Backend tests | ✅ 275/275, 20 suites |
+| Stored `sections` keys vs `ResearchReportSectionsPayload` | ✅ all 16 match |
+| Nested shapes (`mvpScope`, `technicalFeasibility`, sources, features, claims, products) | ✅ match field-for-field |
+| `severity` values present in the data (`LOW`/`MEDIUM`/`HIGH`) | ✅ all in the union |
+| `SourceLink` against real data | ✅ 17/17 comparable products carry retrieved URLs |
+
+The payload types were checked against the two real reports in the dev database
+rather than against the Zod schema alone, because Prisma types the column as
+`Json?` — the declared payload is an assertion about what is stored, which the
+compiler cannot check.
+
+### Not exercised by the current dev data
+
+Every claim in both stored reports is `ANALYSIS` with a null `sourceUrl` —
+consistent with `stripInventedCitations` having demoted the model's invented
+citations. So the `VERIFIED` badge and the `SourceLink` *inside a claim row*
+have not been seen against real data, though `SourceLink` itself is exercised
+via the sources list and comparable products. Worth a look whenever a report
+does come back with a genuinely cited claim.
 
 ---
 
