@@ -25,6 +25,7 @@ import {
 import {
   useAudioRecorder,
   RecordingPresets,
+  getRecordingPermissionsAsync,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
 } from 'expo-audio';
@@ -161,6 +162,16 @@ export default function FocusScreen() {
   const lastRecordingUri = useRef<string | null>(null);
   /** Guards against the mic being released twice (press-out + cancel). */
   const isStoppingRef = useRef(false);
+  /**
+   * True from the moment a press lands until the mic is released again.
+   *
+   * A ref rather than the isRecording state because startRecording awaits
+   * three times before setting that state, and a closure created during those
+   * awaits still sees the old value. Without this, a second press in that
+   * window starts a competing attempt which fails on the already-claimed mic —
+   * raising "Could not start recording" over a recording that is working fine.
+   */
+  const isActiveRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   /**
    * Wall-clock start of the current recording. Read instead of the
@@ -177,8 +188,48 @@ export default function FocusScreen() {
   }, []);
 
   // A recording left running when the screen unmounts would hold the mic and
-  // keep the audio session in recording mode.
-  useEffect(() => stopTimer, [stopTimer]);
+  // keep the audio session in recording mode. Clearing the timer alone does
+  // not give the mic back, so the session is reset too.
+  useEffect(
+    () => () => {
+      stopTimer();
+      if (isActiveRef.current) {
+        isActiveRef.current = false;
+        void setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+      }
+    },
+    [stopTimer],
+  );
+
+  /**
+   * Settles the microphone permission once, on mount.
+   *
+   * Without this the very first hold is always lost: the OS prompt appears
+   * mid-gesture, the user lifts their finger to tap "Allow", and the press-out
+   * lands on a recording that never began. Asking here moves that prompt to a
+   * moment when no gesture is in flight. Uses the existing granted state when
+   * there is one, so it does not re-prompt on every launch.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const { granted, canAskAgain } = await getRecordingPermissionsAsync();
+        // Only ask when the system will actually show a prompt. A hard denial
+        // is left alone: nagging on every launch is worse than letting the
+        // user discover it when they reach for the mic.
+        if (cancelled || granted || !canAskAgain) return;
+        await requestRecordingPermissionsAsync();
+      } catch {
+        // Non-fatal: the mic handler asks again and reports it properly there.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const blurTargetRef = useRef<View | null>(null);
   const { translateY: headerTranslateY, opacity: headerOpacity, onScroll, headerHeight: HEADER_HEIGHT } = useCollapsibleHeader(80);
@@ -247,26 +298,47 @@ export default function FocusScreen() {
     }
   }, []);
 
+  /**
+   * Asks for the microphone, explaining the outcome when it is refused.
+   *
+   * Separate from startRecording because the OS prompt is modal: showing it
+   * mid-gesture means the user lifts their finger to answer it, onPressOut
+   * fires against a recording that never started, and the first hold is lost.
+   * This runs before the gesture instead, so by the time the mic button is
+   * held the answer is already known.
+   */
+  const ensureMicPermission = useCallback(async (): Promise<boolean> => {
+    const { granted, canAskAgain } = await requestRecordingPermissionsAsync();
+    if (granted) return true;
+
+    // Permanently denied needs Settings; a soft denial can just be retried.
+    if (canAskAgain) {
+      Alert.alert(
+        'Microphone needed',
+        'BLISP needs your microphone to capture spoken ideas. Tap the mic again to allow it.',
+      );
+    } else {
+      Alert.alert(
+        'Microphone access is off',
+        'Enable the microphone for BLISP in Settings to capture ideas by voice. You can still type them in the meantime.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+        ],
+      );
+    }
+    return false;
+  }, []);
+
   const startRecording = useCallback(async () => {
+    // Ignore a press while one is already starting or running, or while the
+    // previous one is still releasing a mic the OS has not handed back yet.
+    if (isActiveRef.current || isStoppingRef.current) return;
+    isActiveRef.current = true;
+
     try {
-      const { granted, canAskAgain } = await requestRecordingPermissionsAsync();
-      if (!granted) {
-        // Permanently denied needs Settings; a soft denial can just be retried.
-        if (canAskAgain) {
-          Alert.alert(
-            'Microphone needed',
-            'BLISP needs your microphone to capture spoken ideas. Tap the mic again to allow it.',
-          );
-        } else {
-          Alert.alert(
-            'Microphone access is off',
-            'Enable the microphone for BLISP in Settings to capture ideas by voice. You can still type them in the meantime.',
-            [
-              { text: 'Not now', style: 'cancel' },
-              { text: 'Open Settings', onPress: () => void Linking.openSettings() },
-            ],
-          );
-        }
+      if (!(await ensureMicPermission())) {
+        isActiveRef.current = false;
         return;
       }
 
@@ -275,7 +347,14 @@ export default function FocusScreen() {
         allowsRecording: true,
       });
 
-      await recorder.prepareToRecordAsync();
+      // The recorder keeps its own prepared state, which outlives our refs:
+      // stop() does not always return it to unprepared, and preparing twice
+      // throws "AudioRecorder has already been prepared". Ask the recorder
+      // rather than assuming — a prepared recorder can go straight to record().
+      if (!recorder.getStatus().canRecord) {
+        await recorder.prepareToRecordAsync();
+      }
+
       recorder.record();
 
       isStoppingRef.current = false;
@@ -287,13 +366,28 @@ export default function FocusScreen() {
       timerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
     } catch (err) {
       console.error('[Recording] Failed to start:', err);
+
+      // Leave the recorder genuinely reusable, or one failure becomes a run of
+      // them. Two separate pieces of state have to be undone: the recorder's
+      // own prepared session, and the device audio route this function opened.
+      await recorder.stop().catch(() => undefined);
+      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+
+      isActiveRef.current = false;
+      setIsRecording(false);
+      stopTimer();
+
       Alert.alert('Could not start recording', 'Please try again in a moment.');
     }
-  }, [recorder, stopTimer]);
+  }, [recorder, stopTimer, ensureMicPermission]);
 
   /** Releases the mic and returns the captured uri, or null if unusable. */
   const releaseRecorder = useCallback(async (): Promise<string | null> => {
     stopTimer();
+    // Cleared here rather than in each caller: every path that gives the mic
+    // back goes through this function, so the next press is accepted even if
+    // stop() throws.
+    isActiveRef.current = false;
     setIsRecording(false);
 
     try {
@@ -307,7 +401,10 @@ export default function FocusScreen() {
   }, [recorder, stopTimer]);
 
   const stopRecording = useCallback(async () => {
-    if (!isRecording || isStoppingRef.current) return;
+    // isActiveRef, not the isRecording state: a press-out can arrive before
+    // the state update from startRecording has rendered, and gating on stale
+    // state would drop the release and leave the mic open.
+    if (!isActiveRef.current || isStoppingRef.current) return;
     isStoppingRef.current = true;
 
     const startedAt = recordingStartedAtRef.current;
@@ -338,11 +435,11 @@ export default function FocusScreen() {
     } finally {
       isStoppingRef.current = false;
     }
-  }, [isRecording, releaseRecorder, runTranscription]);
+  }, [releaseRecorder, runTranscription]);
 
   /** Abandons the in-progress recording without transcribing or charging. */
   const cancelRecording = useCallback(async () => {
-    if (!isRecording || isStoppingRef.current) return;
+    if (!isActiveRef.current || isStoppingRef.current) return;
     isStoppingRef.current = true;
 
     recordingStartedAtRef.current = null;
@@ -356,7 +453,7 @@ export default function FocusScreen() {
       isStoppingRef.current = false;
       setRecordingSeconds(0);
     }
-  }, [isRecording, releaseRecorder]);
+  }, [releaseRecorder]);
 
   const retryTranscription = useCallback(() => {
     const uri = lastRecordingUri.current;

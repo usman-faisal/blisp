@@ -6,8 +6,8 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { XaiTranscriptionHttpError } from '../providers/xai-transcription.provider';
 import { MAX_AUDIO_BYTES, MIN_AUDIO_BYTES } from '../transcription.constants';
+import { TranscriptionHttpError } from '../transcription.errors';
 import { TRANSCRIPTION_PROVIDER, TranscriptionProvider } from '../transcription.provider';
 import { TranscriptionService } from '../transcription.service';
 
@@ -159,7 +159,7 @@ describe('TranscriptionService', () => {
       [502, BadGatewayException],
     ])('maps provider %s onto the right client error', async (status, expected) => {
       const service = await build({
-        transcribe: jest.fn().mockRejectedValue(new XaiTranscriptionHttpError(status)),
+        transcribe: jest.fn().mockRejectedValue(new TranscriptionHttpError(status)),
       });
 
       await expect(service.transcribeAudio(makeFile(), USER_ID)).rejects.toThrow(expected);

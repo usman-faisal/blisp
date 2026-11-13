@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { TranscriptionHttpError } from '../transcription.errors';
 import { TranscribeInput, TranscriptionProvider, TranscriptionResult } from '../transcription.provider';
 
 /**
@@ -86,7 +87,7 @@ export class XaiTranscriptionProvider implements TranscriptionProvider {
       // could be large or HTML, so truncate and never log the request.
       const body = await response.text().catch(() => '');
       this.logger.error(`xAI STT returned ${response.status}: ${body.slice(0, 500) || '<empty body>'}`);
-      throw new XaiTranscriptionHttpError(response.status);
+      throw new TranscriptionHttpError(response.status, this.name);
     }
 
     const payload = (await response.json().catch(() => null)) as {
@@ -104,13 +105,5 @@ export class XaiTranscriptionProvider implements TranscriptionProvider {
       language: typeof payload.language === 'string' ? payload.language : undefined,
       durationSeconds: typeof payload.duration === 'number' ? payload.duration : undefined,
     };
-  }
-}
-
-/** Carries the provider's HTTP status so the service can map it to a 4xx/5xx. */
-export class XaiTranscriptionHttpError extends Error {
-  constructor(readonly status: number) {
-    super(`xAI transcription failed with status ${status}`);
-    this.name = 'XaiTranscriptionHttpError';
   }
 }

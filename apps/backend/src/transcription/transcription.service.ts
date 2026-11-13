@@ -15,8 +15,8 @@ import {
   MAX_AUDIO_BYTES,
   MIN_AUDIO_BYTES,
 } from './transcription.constants';
+import { TranscriptionHttpError } from './transcription.errors';
 import { TRANSCRIPTION_PROVIDER, TranscriptionProvider, TranscriptionResult } from './transcription.provider';
-import { XaiTranscriptionHttpError } from './providers/xai-transcription.provider';
 
 /** What the mobile client receives. Never includes provider internals. */
 export interface TranscribeAudioResponse {
@@ -126,7 +126,7 @@ export class TranscriptionService {
 
   /** Maps provider failures onto statuses the client can act on. */
   private toHttpError(error: unknown, userId: string): Error {
-    if (error instanceof XaiTranscriptionHttpError) {
+    if (error instanceof TranscriptionHttpError) {
       // 401/403 is our key, not the user's problem; 429 and 5xx are transient.
       if (error.status === 401 || error.status === 403) {
         this.logger.error('Transcription provider rejected our credentials.');
@@ -151,7 +151,11 @@ export class TranscriptionService {
     }
 
     const message = error instanceof Error ? error.message : 'unknown error';
-    this.logger.error(`Transcription failed for user ${userId}: ${message}`);
+    // Node wraps the real reason on `cause` and shows only "fetch failed" in
+    // the message, which is not enough to tell a DNS blip from a dead network.
+    const cause = (error as { cause?: { code?: unknown } })?.cause?.code;
+    const detail = typeof cause === 'string' ? ` (${cause})` : '';
+    this.logger.error(`Transcription failed for user ${userId}: ${message}${detail}`);
 
     return new BadGatewayException('Could not transcribe that recording. Please try again.');
   }
