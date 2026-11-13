@@ -85,7 +85,6 @@ function guessMimeType(extension: string): string {
     case 'webm':
       return 'audio/webm';
     case 'ogg':
-    case 'opus':
       return 'audio/ogg';
     case 'caf':
       return 'audio/x-caf';
