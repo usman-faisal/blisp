@@ -87,9 +87,7 @@ describe('TasksService — assignment', () => {
     mockAccess.assertMember.mockResolvedValue({ role: 'MEMBER' });
     mockPrisma.projectMember.findUnique.mockResolvedValue(null);
 
-    await expect(
-      service.assignTask(ACTOR, TASK, { assigneeId: OUTSIDER }),
-    ).rejects.toThrow(BadRequestException);
+    await expect(service.assignTask(ACTOR, TASK, { assigneeId: OUTSIDER })).rejects.toThrow(BadRequestException);
 
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
   });
@@ -127,13 +125,13 @@ describe('TasksService — assignment', () => {
     expect(result.data.assigneeId).toBeNull();
   });
 
-  it('rejects a non-member of the task\'s project', async () => {
+  it("rejects a non-member of the task's project", async () => {
     mockPrisma.task.findUnique.mockResolvedValue(task);
     mockAccess.assertMember.mockRejectedValue(new NotFoundException());
 
-    await expect(
-      service.assignTask('user_stranger', TASK, { assigneeId: TEAMMATE }),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.assignTask('user_stranger', TASK, { assigneeId: TEAMMATE })).rejects.toThrow(
+      NotFoundException,
+    );
 
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
   });
@@ -141,9 +139,7 @@ describe('TasksService — assignment', () => {
   it('throws NotFound for a missing task', async () => {
     mockPrisma.task.findUnique.mockResolvedValue(null);
 
-    await expect(
-      service.assignTask(ACTOR, 'missing', { assigneeId: TEAMMATE }),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.assignTask(ACTOR, 'missing', { assigneeId: TEAMMATE })).rejects.toThrow(NotFoundException);
 
     expect(mockAccess.assertMember).not.toHaveBeenCalled();
   });
