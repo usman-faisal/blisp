@@ -223,19 +223,7 @@ export class AiService {
     }
 
     try {
-      const response = await fetch('https://api.tavily.com/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          api_key: TAVILY_API_KEY,
-          query,
-          search_depth: depth,
-          include_answer: false,
-          max_results: depth === 'advanced' ? 5 : 3,
-        }),
-      });
+      const response = await this.tavilyFetch(TAVILY_API_KEY, query, depth);
 
       if (!response.ok) {
         this.logger.warn(`Tavily returned ${response.status} for query: "${query}"`);
@@ -276,17 +264,7 @@ export class AiService {
     }
 
     try {
-      const response = await fetch('https://api.tavily.com/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          api_key: TAVILY_API_KEY,
-          query,
-          search_depth: depth,
-          include_answer: false,
-          max_results: depth === 'advanced' ? 5 : 3,
-        }),
-      });
+      const response = await this.tavilyFetch(TAVILY_API_KEY, query, depth);
 
       if (!response.ok) {
         this.logger.warn(`Tavily returned ${response.status} for query: "${query}"`);
@@ -298,8 +276,89 @@ export class AiService {
       return { results: data?.results ?? [], failed: false };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Tavily search failed for "${query}": ${message}`);
+      // The cause code is what distinguishes a DNS blip from a dead network;
+      // "fetch failed" alone cannot.
+      const cause = (error as { cause?: { code?: unknown } })?.cause?.code;
+      this.logger.error(
+        `Tavily search failed for "${query}": ${message}${typeof cause === 'string' ? ` (${cause})` : ''}`,
+      );
       return { results: [], failed: true };
     }
   }
+
+  /**
+   * Posts a Tavily search, retrying once when the request never got out.
+   *
+   * This machine intermittently fails DNS with EAI_AGAIN — the same fault that
+   * once produced a research report with zero sources, and that leaves daily
+   * plan tasks with no resources attached. A retry is safe here precisely
+   * because these failures happen before Tavily receives anything, so they
+   * consume no quota. Anything Tavily actually answered, including a 429, is
+   * returned untouched: retrying those would multiply usage against a free
+   * tier.
+   */
+  private async tavilyFetch(apiKey: string, query: string, depth: 'basic' | 'advanced'): Promise<Response> {
+    const body = JSON.stringify({
+      api_key: apiKey,
+      query,
+      search_depth: depth,
+      include_answer: false,
+      max_results: depth === 'advanced' ? 5 : 3,
+    });
+
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= TAVILY_CONNECT_RETRIES; attempt++) {
+      // A fresh controller per attempt: an aborted one stays aborted.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TAVILY_TIMEOUT_MS);
+
+      try {
+        return await fetch('https://api.tavily.com/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+          signal: controller.signal,
+        });
+      } catch (error) {
+        lastError = error;
+
+        // A timeout may mean the search is already running, so it is not
+        // retried — unlike a connection that was never established.
+        if (controller.signal.aborted) {
+          throw new Error(`Tavily search timed out after ${TAVILY_TIMEOUT_MS}ms`, { cause: error });
+        }
+
+        if (attempt === TAVILY_CONNECT_RETRIES || !isTavilyConnectFailure(error)) {
+          break;
+        }
+
+        const code = (error as { cause?: { code?: string } })?.cause?.code ?? 'connect error';
+        this.logger.warn(`Tavily could not connect (${code}); retrying once in ${TAVILY_RETRY_DELAY_MS}ms.`);
+        await new Promise((resolve) => setTimeout(resolve, TAVILY_RETRY_DELAY_MS));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('Tavily request failed');
+  }
+}
+
+const TAVILY_CONNECT_RETRIES = 1;
+const TAVILY_RETRY_DELAY_MS = 400;
+const TAVILY_TIMEOUT_MS = 20_000;
+
+/** Failures that happened before the request reached Tavily, so re-sending is free. */
+function isTavilyConnectFailure(error: unknown): boolean {
+  const code = (error as { cause?: { code?: unknown } })?.cause?.code;
+  return (
+    code === 'EAI_AGAIN' ||
+    code === 'ENOTFOUND' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ECONNRESET' ||
+    code === 'EHOSTUNREACH' ||
+    code === 'ENETUNREACH' ||
+    code === 'ETIMEDOUT'
+  );
 }

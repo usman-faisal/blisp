@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { GithubService } from 'src/github/github.service';
 import { TaskStatus } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectAccessService } from 'src/projects/project-access.service';
@@ -55,6 +56,9 @@ describe('TasksService — membership access', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ProjectAccessService, useValue: mockAccess },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        // Verification is refreshed on status change; stubbed so these tests
+        // stay about access and assignment rather than GitHub.
+        { provide: GithubService, useValue: { recomputeTask: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
 
@@ -79,7 +83,10 @@ describe('TasksService — membership access', () => {
 
       await service.getTaskById(MEMBER, TASK);
 
-      const where = mockPrisma.task.findUnique.mock.calls[0][0].where;
+      // Typed at the access point: .mock.calls is loosely typed, so reading
+      // through it otherwise yields `any` and defeats the lint rules.
+      const [firstCall] = mockPrisma.task.findUnique.mock.calls as [{ where: unknown }][];
+      const where = firstCall[0].where;
       expect(where).toEqual({ id: TASK });
       expect(where).not.toHaveProperty('project');
     });
@@ -94,9 +101,7 @@ describe('TasksService — membership access', () => {
     it('throws NotFound for a task that does not exist', async () => {
       mockPrisma.task.findUnique.mockResolvedValue(null);
 
-      await expect(service.getTaskById(MEMBER, 'missing')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.getTaskById(MEMBER, 'missing')).rejects.toThrow(NotFoundException);
       // No point checking membership on a task that isn't there.
       expect(mockAccess.assertMember).not.toHaveBeenCalled();
     });
@@ -124,9 +129,9 @@ describe('TasksService — membership access', () => {
       mockPrisma.task.findUnique.mockResolvedValue(task);
       mockAccess.assertMember.mockRejectedValue(new NotFoundException());
 
-      await expect(
-        service.updateTaskStatus(STRANGER, TASK, { status: TaskStatus.DONE }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.updateTaskStatus(STRANGER, TASK, { status: TaskStatus.DONE })).rejects.toThrow(
+        NotFoundException,
+      );
 
       expect(mockPrisma.task.update).not.toHaveBeenCalled();
     });

@@ -162,6 +162,14 @@ model User {
   assignedTasks   Task[]          @relation("TaskAssignee")
   taskComments    TaskComment[]
 
+  /// GitHub login, captured when the user links a repository or signs in with
+  /// GitHub. This is what lets a commit author be matched to a BLISP user, so
+  /// evidence can be attributed in a team project.
+  githubLogin String? @map("github_login") @db.VarChar(100)
+
+  linkedRepositories ProjectRepository[]
+  evidenceAdded      TaskEvidence[]
+
   @@index([name])
   @@index([email])
 }
@@ -232,6 +240,8 @@ model Project {
 
   researchReports ResearchReport[]
   milestones      Milestone[]
+  /// Linked GitHub repositories, read-only, used as evidence for completion.
+  repositories    ProjectRepository[]
 
   /// Roadmap planning inputs, captured once per project rather than on the
   /// user: someone may have a tight deadline on one project and none on
@@ -356,6 +366,13 @@ model Task {
   /// Set when the status last became DONE, so weekly history and streaks can be
   /// computed without a separate event log. Cleared if a task is reopened.
   completedAt        DateTime?        @map("completed_at")
+
+  /// Evidence that this task was actually done, and the verdict derived from
+  /// it. Status is self-reported — anyone can tap "Done" — so completion is
+  /// treated as a *claim* and recorded separately from what corroborates it.
+  /// See TaskVerification.
+  evidence     TaskEvidence[]
+  verification TaskVerification?
 
   // Null means unclaimed. SetNull on delete so removing a member leaves their
   // tasks in the backlog rather than deleting the team's work.
@@ -522,4 +539,153 @@ model DailyPlan {
 
   @@unique([userId, planDate])
   @@map("daily_plans")
+}
+
+/// How a GitHub repository is linked to a project.
+///
+/// Read-only by design: BLISP observes a repository, it never writes to one.
+/// The token is the viewer's, stored encrypted, and is only ever used for GET
+/// requests against the repositories the user explicitly linked.
+model ProjectRepository {
+  id        String @id @default(uuid()) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+
+  /// "owner/name" exactly as GitHub spells it, for display and API calls.
+  owner String @db.VarChar(100)
+  name  String @db.VarChar(100)
+  /// GitHub's numeric id. Kept because a repository can be renamed, and the
+  /// owner/name pair is therefore not a stable identity.
+  githubId     BigInt  @map("github_id")
+  defaultBranch String @default("main") @map("default_branch") @db.VarChar(100)
+  isPrivate    Boolean @default(false) @map("is_private")
+
+  /// Encrypted PAT or OAuth token used to read this repository. Nullable so a
+  /// public repository can be polled unauthenticated if no token is supplied.
+  /// Never returned by any endpoint.
+  accessToken String? @map("access_token") @db.Text
+
+  /// Watermark for incremental syncing: only commits after this are fetched,
+  /// so a re-sync costs one page rather than the whole history.
+  lastSyncedAt  DateTime? @map("last_synced_at")
+  /// Why the last sync failed, for showing an honest state in the UI instead
+  /// of a silently empty feed. Null when the last sync succeeded.
+  lastSyncError String?   @map("last_sync_error") @db.Text
+
+  linkedById String   @map("linked_by_id")
+  linkedAt   DateTime @default(now()) @map("linked_at")
+
+  project  Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  linkedBy User           @relation(fields: [linkedById], references: [id])
+  evidence TaskEvidence[]
+
+  /// One link per repository per project; re-linking updates in place.
+  @@unique([projectId, githubId])
+  @@index([projectId])
+  @@map("project_repositories")
+}
+
+/// Where a piece of evidence came from.
+enum EvidenceSource {
+  /// Discovered automatically by matching a commit message to a task.
+  COMMIT
+  /// A pull request that referenced the task.
+  PULL_REQUEST
+  /// A GitHub issue closed with a reference to the task.
+  ISSUE
+  /// Attached by a human when automatic matching missed it. Still evidence,
+  /// but weaker: a person chose it, so it is marked as such in the UI rather
+  /// than being passed off as independently observed.
+  MANUAL
+}
+
+/// One observed artifact that may corroborate a task's completion.
+///
+/// Deliberately append-only and never edited by the user: this table is the
+/// record of what was *found*, separate from any judgement about it. A row
+/// here does not by itself mean a task is done — TaskVerification holds that
+/// conclusion, and the same commit can support a task that was later reopened.
+model TaskEvidence {
+  id     String         @id @default(uuid()) @db.Uuid
+  taskId String         @map("task_id") @db.Uuid
+  source EvidenceSource
+
+  /// Commit SHA, PR number or issue number, as text so all three fit.
+  externalId String @map("external_id") @db.VarChar(255)
+  /// Commit subject or PR/issue title, stored so the UI need not re-fetch.
+  title      String @db.Text
+  url        String @db.Text
+  /// GitHub login of the author, for attribution in a team project.
+  authorLogin String? @map("author_login") @db.VarChar(100)
+  /// When the work happened on GitHub, not when BLISP noticed it. This is what
+  /// makes evidence checkable against a claimed completion time.
+  occurredAt  DateTime @map("occurred_at")
+
+  /// Why this was matched to the task, in plain language, e.g.
+  /// 'commit message contains "BLISP-4f2a"'. Shown in the UI so a user can
+  /// judge the match rather than trusting it.
+  matchReason String @map("match_reason") @db.Text
+
+  repositoryId String?   @map("repository_id") @db.Uuid
+  /// Null for automatic matches; set when a person attached it.
+  addedById    String?   @map("added_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  task       Task               @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  repository ProjectRepository? @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
+  addedBy    User?              @relation(fields: [addedById], references: [id], onDelete: SetNull)
+
+  /// The same artifact is recorded once per task. A commit legitimately
+  /// supports several tasks, so this is not unique on externalId alone.
+  @@unique([taskId, source, externalId])
+  @@index([taskId])
+  @@map("task_evidence")
+}
+
+/// The verdict on a completion claim.
+///
+/// Mirrors the discovery report's entailment verdicts, and for the same
+/// reason: the honest answer to "is this done?" is often "we cannot tell", and
+/// collapsing that into a boolean would misrepresent the evidence.
+enum VerificationVerdict {
+  /// Evidence was found that corroborates the claim.
+  VERIFIED
+  /// The task is marked done and a repository is linked, but nothing matching
+  /// was found. NOT an accusation: non-code work and unconventional commit
+  /// messages both land here legitimately.
+  UNVERIFIED
+  /// No repository is linked, so verification was never possible. Kept
+  /// distinct from UNVERIFIED so a project without GitHub is not reported as
+  /// failing verification.
+  SELF_REPORTED
+  /// Evidence exists but contradicts the claim — currently only when every
+  /// piece of evidence predates the task being created.
+  DISPUTED
+}
+
+/// The conclusion drawn about one task's completion claim.
+///
+/// Derived, never user-editable: there is no endpoint that sets `verdict`
+/// directly. It is recomputed from TaskEvidence whenever evidence or status
+/// changes, which is what makes it meaningful — a user can change their task
+/// status freely, but cannot change what the evidence says about it.
+model TaskVerification {
+  id     String              @id @default(uuid()) @db.Uuid
+  taskId String              @unique @map("task_id") @db.Uuid
+  verdict VerificationVerdict
+
+  /// How many evidence rows supported this verdict when it was computed.
+  evidenceCount Int @default(0) @map("evidence_count")
+  /// One sentence explaining the verdict in the user's terms, e.g.
+  /// "2 commits reference this task". Written by the verifier, shown as-is.
+  summary       String @db.Text
+
+  /// The completion being judged. If a task is reopened and re-completed, the
+  /// verdict is recomputed against the new claim rather than the old one.
+  claimedAt  DateTime? @map("claimed_at")
+  computedAt DateTime  @default(now()) @map("computed_at")
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([verdict])
+  @@map("task_verifications")
 }

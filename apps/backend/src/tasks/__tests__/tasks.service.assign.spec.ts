@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { GithubService } from 'src/github/github.service';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectAccessService } from 'src/projects/project-access.service';
 import { TasksService } from '../tasks.service';
@@ -46,6 +47,9 @@ describe('TasksService — assignment', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ProjectAccessService, useValue: mockAccess },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        // Verification is refreshed on status change; stubbed so these tests
+        // stay about access and assignment rather than GitHub.
+        { provide: GithubService, useValue: { recomputeTask: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
 
@@ -83,9 +87,7 @@ describe('TasksService — assignment', () => {
     mockAccess.assertMember.mockResolvedValue({ role: 'MEMBER' });
     mockPrisma.projectMember.findUnique.mockResolvedValue(null);
 
-    await expect(
-      service.assignTask(ACTOR, TASK, { assigneeId: OUTSIDER }),
-    ).rejects.toThrow(BadRequestException);
+    await expect(service.assignTask(ACTOR, TASK, { assigneeId: OUTSIDER })).rejects.toThrow(BadRequestException);
 
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
   });
@@ -123,13 +125,13 @@ describe('TasksService — assignment', () => {
     expect(result.data.assigneeId).toBeNull();
   });
 
-  it('rejects a non-member of the task\'s project', async () => {
+  it("rejects a non-member of the task's project", async () => {
     mockPrisma.task.findUnique.mockResolvedValue(task);
     mockAccess.assertMember.mockRejectedValue(new NotFoundException());
 
-    await expect(
-      service.assignTask('user_stranger', TASK, { assigneeId: TEAMMATE }),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.assignTask('user_stranger', TASK, { assigneeId: TEAMMATE })).rejects.toThrow(
+      NotFoundException,
+    );
 
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
   });
@@ -137,9 +139,7 @@ describe('TasksService — assignment', () => {
   it('throws NotFound for a missing task', async () => {
     mockPrisma.task.findUnique.mockResolvedValue(null);
 
-    await expect(
-      service.assignTask(ACTOR, 'missing', { assigneeId: TEAMMATE }),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.assignTask(ACTOR, 'missing', { assigneeId: TEAMMATE })).rejects.toThrow(NotFoundException);
 
     expect(mockAccess.assertMember).not.toHaveBeenCalled();
   });

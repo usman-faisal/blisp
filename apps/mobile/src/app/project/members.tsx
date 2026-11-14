@@ -206,6 +206,11 @@ export default function ProjectMembersScreen() {
     <Container>
       <ScrollView
         contentContainerClassName="px-5 pb-10"
+        // The invite field lives partway down this screen, so the keyboard can
+        // cover it. These keep it in view and let a button be tapped while the
+        // keyboard is still open, rather than the first tap only dismissing it.
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <View className="flex-row items-center gap-3 py-4">
           <Pressable onPress={() => router.back()} hitSlop={12}>

@@ -3,6 +3,8 @@ import Text from '@/components/ui/Text';
 import { useTaskDetail } from '@/hooks/useTaskDetail';
 import { useProjectMembers } from '@/hooks/useProjectMembers';
 import { useTaskComments } from '@/hooks/useTaskComments';
+import { useTaskVerification } from '@/hooks/useTaskVerification';
+import { TaskEvidencePanel } from '@/components/github/TaskEvidencePanel';
 import { AssigneePicker } from '@/components/ui/AssigneePicker';
 import { CommentComposer, CommentThread } from '@/components/ui/CommentThread';
 import { MemberAvatar } from '@/components/ui/MemberAvatar';
@@ -182,6 +184,16 @@ export default function TaskDetailScreen() {
   const { data: task, isLoading, mutate } = useTaskDetail(id);
 
   const { data: members } = useProjectMembers(task?.project.id ?? '');
+
+  // Whether this completion is corroborated by anything in the linked
+  // repository. Supporting information, so a failure here is silent.
+  const {
+    verdict,
+    summary: verificationSummary,
+    evidence,
+    isLoading: isVerificationLoading,
+    refresh: refreshVerification,
+  } = useTaskVerification(task?.project.id, task?.id);
   const {
     data: comments,
     setData: setComments,
@@ -223,13 +235,27 @@ export default function TaskDetailScreen() {
   const [optimisticStatus, setOptimisticStatus] = useState<TaskStatusKey | null>(null);
   const currentStatus = optimisticStatus ?? (task?.status as TaskStatusKey);
 
-  // Sync optimistic state when real data arrives
+  // Clear the optimistic overlay once the server's own value has caught up.
+  //
+  // Keyed on the task's *values*, not the task object: SWR hands back a new
+  // object on every revalidation, so depending on `task` re-ran this on every
+  // poll — including while an update was still in flight, which wiped the
+  // optimistic status and snapped the pill back to its old value. Comparing
+  // the actual status means the overlay is dropped only when the server
+  // agrees, and a revalidation that changes nothing no longer touches it.
   useEffect(() => {
-    if (task) {
+    if (task?.status && optimisticStatus === task.status) {
       setOptimisticStatus(null);
+    }
+  }, [task?.status, optimisticStatus]);
+
+  useEffect(() => {
+    // Same reasoning as the status overlay above. `id` is null for an
+    // unassigned task, which is a real value here rather than "no answer".
+    if (optimisticAssignee && optimisticAssignee.id === (task?.assigneeId ?? null)) {
       setOptimisticAssignee(undefined);
     }
-  }, [task]);
+  }, [task?.assigneeId, optimisticAssignee]);
 
   /* --- Assignment ---------------------------------------------------- */
   const handleAssign = useCallback(
@@ -274,6 +300,11 @@ export default function TaskDetailScreen() {
       try {
         await updateTaskStatus(task.id, newStatus);
         mutate();
+        // The server re-judges the completion claim on a status change, so the
+        // verdict here is now stale — without this, marking a task done would
+        // leave "Not checked" on screen beside a completion that may well have
+        // evidence for it.
+        void refreshVerification();
       } catch (error) {
         console.error('[TaskDetail] Status update error:', error);
         setOptimisticStatus(null); // revert
@@ -281,7 +312,7 @@ export default function TaskDetailScreen() {
         setIsUpdatingStatus(false);
       }
     },
-    [task, currentStatus, mutate],
+    [task, currentStatus, mutate, refreshVerification],
   );
 
   /* --- Comments ------------------------------------------------------ */
@@ -543,6 +574,20 @@ export default function TaskDetailScreen() {
                 </View>
               )}
             </View>
+
+            {/* ── Verification ────────────────────────────────────────────
+                Above the discussion because it is part of the task's own
+                state, not commentary on it. */}
+            <TaskEvidencePanel
+              taskId={task.id}
+              verdict={verdict}
+              summary={verificationSummary}
+              evidence={evidence}
+              isLoading={isVerificationLoading}
+              isDone={currentStatus === 'DONE'}
+              isUpdating={isUpdatingStatus}
+              onMarkDone={() => void handleStatusChange('DONE')}
+            />
 
             {/* ── Discussion ──────────────────────────────────────────── */}
             <CommentThread

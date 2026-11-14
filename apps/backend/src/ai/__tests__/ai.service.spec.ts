@@ -133,3 +133,104 @@ describe('AiService — provider selection', () => {
     });
   });
 });
+
+/**
+ * Tavily transport behaviour.
+ *
+ * This machine intermittently fails DNS with EAI_AGAIN. Without a retry, a
+ * blip leaves a daily plan's tasks with no resources attached and a research
+ * report with no sources — indistinguishable, to the user, from "we searched
+ * and found nothing".
+ */
+describe('AiService — Tavily search', () => {
+  const ORIGINAL_FETCH = global.fetch;
+
+  async function build(): Promise<AiService> {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AiService,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) =>
+              ({ AI_PROVIDER: 'groq', GROQ_API_KEY: 'k', GROQ_MODEL: 'm', TAVILY_API_KEY: 'tvly-test' })[key],
+          },
+        },
+      ],
+    }).compile();
+
+    return module.get<AiService>(AiService);
+  }
+
+  /** Mirrors Node: the real reason is on `cause.code`, not the message. */
+  function connectError(code: string): Error {
+    return Object.assign(new Error('fetch failed'), { cause: Object.assign(new Error(code), { code }) });
+  }
+
+  function okResponse(results: unknown[]) {
+    return { ok: true, status: 200, json: () => Promise.resolve({ results }) };
+  }
+
+  afterEach(() => {
+    global.fetch = ORIGINAL_FETCH;
+    jest.restoreAllMocks();
+  });
+
+  it('retries a DNS failure and succeeds on the second attempt', async () => {
+    const spy = jest
+      .fn()
+      .mockRejectedValueOnce(connectError('EAI_AGAIN'))
+      .mockResolvedValueOnce(okResponse([{ title: 'a', url: 'https://x' }]));
+    global.fetch = spy as unknown as typeof fetch;
+
+    const result = await (await build()).searchWithStatus('react testing');
+
+    expect(result.failed).toBe(false);
+    expect(result.results).toHaveLength(1);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports failure after the retry is exhausted', async () => {
+    const spy = jest.fn().mockRejectedValue(connectError('EAI_AGAIN'));
+    global.fetch = spy as unknown as typeof fetch;
+
+    const result = await (await build()).searchWithStatus('react testing');
+
+    // failed:true is what stops a sourceless report being saved as a normal one.
+    expect(result.failed).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('does NOT retry an HTTP error — that would multiply quota usage', async () => {
+    const spy = jest.fn().mockResolvedValue({ ok: false, status: 429, json: () => Promise.resolve({}) });
+    global.fetch = spy as unknown as typeof fetch;
+
+    const result = await (await build()).searchWithStatus('react testing');
+
+    expect(result.failed).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats an empty result set from a 200 as a real answer, not a failure', async () => {
+    global.fetch = jest.fn().mockResolvedValue(okResponse([])) as unknown as typeof fetch;
+
+    const result = await (await build()).searchWithStatus('nothing matches this');
+
+    expect(result).toEqual({ results: [], failed: false });
+  });
+
+  it('retries for the resource path too, so a blip does not cost resources', async () => {
+    // search() is what the daily-plan resource fetch uses. It collapses errors
+    // into [], so without the retry a blip silently yields no resources.
+    const spy = jest
+      .fn()
+      .mockRejectedValueOnce(connectError('ECONNRESET'))
+      .mockResolvedValueOnce(okResponse([{ title: 'guide', url: 'https://g' }]));
+    global.fetch = spy as unknown as typeof fetch;
+
+    const results = await (await build()).search('how to test');
+
+    expect(results).toHaveLength(1);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+});
