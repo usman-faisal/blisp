@@ -1,8 +1,10 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { User } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
+import { THROTTLE_GITHUB_SYNC } from 'src/common/lib/throttle';
 import { AddEvidenceDto, LinkRepositoryDto } from './dto/github.dto';
 import { GithubService } from './github.service';
 
@@ -53,6 +55,9 @@ export class GithubController {
   }
 
   @Post('repositories/:repositoryId/sync')
+  // GitHub's unauthenticated budget is 60/hour and shared across the whole
+  // deployment, so this is capped well below it.
+  @Throttle({ default: THROTTLE_GITHUB_SYNC })
   @ApiOperation({ summary: 'Fetch new commits and record evidence for referenced tasks' })
   @ApiResponse({ status: 201, description: 'Sync completed.' })
   @ApiResponse({ status: 400, description: 'GitHub unreachable or rate limited.' })

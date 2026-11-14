@@ -1,8 +1,10 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { User } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
+import { THROTTLE_AI } from 'src/common/lib/throttle';
 import { BrainDumpsService } from './brain-dumps.service';
 import { CreateBrainDumpDto } from './dto/create-brain-dump.dto';
 import { BrainDumpResponse } from '@repo/types';
@@ -15,6 +17,8 @@ export class BrainDumpsController {
   constructor(private readonly brainDumpsService: BrainDumpsService) {}
 
   @Post()
+  // Each dump triggers the LLM pipeline and several web searches.
+  @Throttle({ default: THROTTLE_AI })
   @ApiOperation({ summary: 'Process a new brain dump' })
   @ApiResponse({ status: 201, description: 'Brain dump processed successfully.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })

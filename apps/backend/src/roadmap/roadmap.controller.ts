@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { THROTTLE_AI } from 'src/common/lib/throttle';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { User } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
@@ -52,6 +54,8 @@ export class RoadmapController {
   }
 
   @Post('generate')
+  // Milestone generation is an LLM call over the whole project scope.
+  @Throttle({ default: THROTTLE_AI })
   @ApiOperation({
     summary: 'Build the roadmap from confirmed scope',
     description:

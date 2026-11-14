@@ -1,10 +1,12 @@
 import { Body, Controller, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { User } from '@repo/db';
 import { memoryStorage } from 'multer';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
+import { THROTTLE_TRANSCRIPTION } from 'src/common/lib/throttle';
 import { TranscribeAudioDto } from './dto/transcribe-audio.dto';
 import { AUDIO_FIELD_NAME, MAX_AUDIO_BYTES } from './transcription.constants';
 import { TranscribeAudioResponse, TranscriptionService } from './transcription.service';
@@ -28,6 +30,9 @@ export class TranscriptionController {
    * clean up, nothing retained once the request ends.
    */
   @Post('audio')
+  // Tighter than the global default: this spends a metered third-party audio
+  // quota that is shared by every user and does not refill on request.
+  @Throttle({ default: THROTTLE_TRANSCRIPTION })
   @UseInterceptors(
     FileInterceptor(AUDIO_FIELD_NAME, {
       storage: memoryStorage(),
