@@ -9,11 +9,11 @@ One milestone at a time: implement, smoke-test, commit, then move on.
 |---|---|---|---|
 | 0 | Repository audit | — | ✅ Done |
 | 1 | Dashboard | P0 | ✅ Done (pre-existing) |
-| 2 | Voice-to-text idea capture | P0 | ✅ Done — provider key pending |
+| 2 | Voice-to-text idea capture | P0 | ✅ Done — Groq Whisper, tested on device |
 | 3 | AI research, report, feature recommendations | P0 | ✅ Done — beta ([findings](./DISCOVERY_REPORT_FINDINGS.md)) |
 | 4 | Personalized roadmap and task tracker | P0 | ✅ Done |
 | 5 | Notifications and streaks | P0 | 🟡 Partial — in-app + streaks done, push missing |
-| 6 | GitHub integration | P1 | ⬜ Not started |
+| 6 | GitHub integration | P1 | 🟡 Verified completion built; OAuth not built |
 | 7 | Project-aware AI assistant | P1 | ⬜ Not started |
 | 8 | Collaboration verification | P1 | ✅ Done (see [COLLABORATION_PROGRESS.md](./COLLABORATION_PROGRESS.md)) |
 | 9 | Netlify deployment | P2 | ⬜ Not started |
@@ -103,15 +103,63 @@ bailed, then start left a recording running indefinitely. Switched to
 `onPressIn` for true press-and-hold. Elapsed time now comes from a wall-clock
 ref rather than the 1 s interval counter, which was too coarse to judge a tap.
 
+### Completed with Groq Whisper (2026-11-14)
+
+The xAI blocker above was resolved by switching provider rather than waiting
+for a payment card. **Groq** (not Grok — different company, one letter apart)
+hosts OpenAI's Whisper on a free tier, and the key was already in the env for
+the research stage, so speech-to-text needed no new credential.
+
+| | xAI Grok | Groq Whisper |
+|---|---|---|
+| Free tier | none, billed per audio hour | yes |
+| Card required | yes | no |
+| Outcome | blocked | shipped |
+
+- `GroqTranscriptionProvider` — `whisper-large-v3-turbo`, `verbose_json` for
+  duration, `temperature: 0` so silence is not hallucinated into words.
+- The module already bound its provider through a DI symbol, so this was one
+  new file plus a binding change. xAI remains implemented and tested behind
+  `STT_PROVIDER=xai`, which makes "we evaluated two providers and chose on
+  cost" a true statement rather than a retrofit.
+
+**Two pre-existing bugs this surfaced:**
+
+1. `TranscriptionService` matched `instanceof XaiTranscriptionHttpError`, so a
+   non-xAI 429 fell through to a generic 502 and lost its retry guidance. The
+   error is now vendor-neutral in `transcription.errors.ts`.
+2. `.opus` passed upload validation but Groq rejects it, so such a recording
+   would have been accepted and then failed at the provider — costing the user
+   their audio *and* a request against the quota. Removed from both the backend
+   lists and the mobile mime guesser, which had disagreed with each other.
+
+**Verified on a physical device:** 82,738 bytes of real speech transcribed in
+one request — `Transcribed 82738 bytes (27 chars, 4.969s)` — and a separate
+19-second recording returned a complete, accurate transcript into the review
+sheet. Record → review → submit works end to end.
+
+### Recording lifecycle bugs found on device
+
+Three distinct faults, each reproduced from a screenshot or log:
+
+1. **Permission requested inside `onPressIn`.** The OS prompt is modal, so the
+   user lifted their finger to answer it and the first hold was always lost.
+   Now settled on mount, using `getRecordingPermissionsAsync` first so it does
+   not re-prompt every launch.
+2. **No guard against a second `startRecording`.** `isStoppingRef` only guarded
+   *stopping*. A second press during the three awaits before `setIsRecording`
+   started a competing attempt that failed on the already-claimed mic — raising
+   "Could not start recording" over a recording that was working fine. Fixed
+   with a ref (not state, which is stale inside those awaits).
+3. **`AudioRecorder has already been prepared`.** The recorder keeps its own
+   prepared state that outlives our refs, and `stop()` does not reliably clear
+   it. Now checks `recorder.getStatus().canRecord` before preparing, and the
+   failure path resets both the recorder and the audio session so one failure
+   stops cascading into the next.
+
 ### Outstanding
 
-1. **`XAI_API_KEY` is not set** — no payment card available yet. Until then
-   `POST /transcription/audio` returns 503 with a clear message and the rest of
-   the app is unaffected. No real transcription has been performed; none was
-   faked. Add the key to `apps/backend/.env` to complete the smoke test.
-2. **Not yet tested on a physical device end-to-end.** Record → review → submit
-   needs a real device once the key is in place.
-3. **`expo lint` is broken repo-wide** — the mobile app has no ESLint config or
+1. **`expo lint` is broken repo-wide** — the mobile app has no ESLint config or
    dependency, so it tries to install `eslint-config-expo` and fails.
    Pre-existing and unrelated to this milestone.
 
@@ -295,6 +343,194 @@ citations. So the `VERIFIED` badge and the `SourceLink` *inside a claim row*
 have not been seen against real data, though `SourceLink` itself is exercised
 via the sources list and comparable products. Worth a look whenever a report
 does come back with a genuinely cited claim.
+
+---
+
+## Milestone 6 — GitHub integration 🟡
+
+Status: **verified task completion built and working; OAuth not built.**
+Scoped deliberately — see *Scope decision* below.
+
+### The problem this solves
+
+Task status is self-reported. A user taps "Done" and every downstream figure —
+milestone progress, streaks, schedule fit — treats that as fact. Nothing
+corroborates it, and on a shared project there is no way to tell whether
+assigned work was actually done.
+
+The approach mirrors the discovery report's entailment pass, and for the same
+reason: a claim is checked against evidence, and the honest answer is often
+"we cannot tell". Collapsing that into a boolean would misrepresent it.
+
+| Verdict | Meaning |
+|---|---|
+| `VERIFIED` | a commit or PR references this task |
+| `UNVERIFIED` | repository linked, nothing found — **not** an accusation |
+| `SELF_REPORTED` | no repository linked, so it was never checkable |
+| `DISPUTED` | all evidence predates the task |
+
+`SELF_REPORTED` exists so a project without GitHub is not reported as failing
+checks, and it is excluded from the ratio rather than scored 0%.
+
+### Design decisions
+
+**Status stays the user's to set.** Evidence never auto-completes a task: a
+commit can reference work that is only half finished, and letting it close the
+task would hand the claim to the evidence. When evidence exists on an open
+task the UI *offers* "Mark as done" instead.
+
+**The verdict is derived, never written.** There is no endpoint that sets
+`verdict`. It is recomputed from `TaskEvidence` whenever either half of the
+question changes — the task's status, or the evidence for it. A user can change
+status freely; they cannot change what the evidence says about it.
+
+**Matching is explicit-reference only.** A commit must contain
+`BLISP-<first 8 chars of task id>`. No fuzzy title similarity, no same-day
+heuristics, no keyword overlap. A false positive is far worse than a miss: it
+makes every badge untrustworthy while looking authoritative, where a miss only
+yields an honest `UNVERIFIED`. There is a test asserting a commit reading
+`"implement booking endpoint"` does **not** match a task titled *Implement
+booking endpoint*.
+
+**Read-only against GitHub.** No write verbs exist anywhere in the client. The
+user pushes with git as they normally would, which is what keeps the evidence
+independent of the app reporting on it — and makes "what if the token leaks?"
+a much easier question to answer.
+
+**24-hour grace period.** Writing code and then creating the task to track it
+is a legitimate order of operations, so evidence slightly predating a task does
+not read as `DISPUTED`.
+
+**Wording is never accusatory.** `UNVERIFIED` renders as "Not checked" with
+"No commit references this task yet" — a fact about evidence, not about the
+person. Only `DISPUTED` is red.
+
+### Files added
+
+- `packages/db/prisma/schema.prisma` — `ProjectRepository`, `TaskEvidence`,
+  `TaskVerification`; enums `EvidenceSource`, `VerificationVerdict`;
+  `User.githubLogin`. Migration `20261113225604_add_task_verification_and_repositories`.
+- `apps/backend/src/github/verification.ts` — `verifyCompletion()`,
+  `summarizeVerification()`. Pure: no database, no network.
+- `apps/backend/src/github/matcher.ts` — `taskReference()`, `matchCommit()`,
+  `closedIssueNumbers()`.
+- `apps/backend/src/github/github.client.ts` — read-only REST client.
+- `apps/backend/src/github/github.service.ts` — link, sync, recompute.
+- `apps/backend/src/github/github.controller.ts` — 8 endpoints, all `assertMember`.
+- Mobile: `VerificationBadge.tsx`, `TaskEvidencePanel.tsx`, `RepositorySheet.tsx`,
+  `useTaskVerification.ts`, `useRepositories.ts`.
+
+### Verified against the real repository
+
+Linked `mustafa-asif/blitz` (public, unauthenticated) and ran the full flow
+against the real database:
+
+```
+BEFORE linking : selfReported 2, percentVerified null
+linked         : mustafa-asif/blitz | private false | token false
+task           : "Add UI tests for add flow" -> BLISP-0208f384
+after commit   : VERIFIED  — "1 commit references this task."
+unevidenced    : UNVERIFIED — "No commit or pull request references this task."
+AFTER          : verified 1, unverified 1, selfReported 2, percentVerified 50
+```
+
+All four verdicts behaved correctly in one run, including `percentVerified:
+null` before a repository existed rather than a misleading 0%.
+
+Live read of `usman-faisal/blisp`: 74 commits scanned, **0 false positives**
+against an unreferenced task. 487 backend tests pass.
+
+### Scope decision
+
+With four days to feature freeze the choice was verification-first or
+OAuth-first. Verification was chosen because it is the part that is actually
+novel; OAuth is plumbing, and finishing it would have left a login button with
+no verification story behind it.
+
+**Not built, and honestly out of scope rather than forgotten:**
+
+1. **OAuth sign-in.** Public repositories need no credential, which covers the
+   demo. The plan's rule "never ask users to paste personal access tokens" is
+   respected for the public path — no token is requested at all. A private
+   repository would need one, so `linkRepository` refuses it with an
+   explanation rather than linking something that would silently never verify.
+2. **Webhooks and signature validation.** Sync is user-initiated. At 60
+   unauthenticated requests/hour with incremental fetching this is well within
+   budget, and it avoids the polling the plan warns against.
+3. **Issues and pull requests.** `closedIssueNumbers()` and the
+   `PULL_REQUEST`/`ISSUE` evidence kinds exist and are tested; only commit
+   ingestion is wired.
+4. **Creating a GitHub issue from a task.** Deliberately not built — it needs
+   write scope and would break the independence argument above.
+
+### Known limitation
+
+If a user forgets the `BLISP-` reference, the task reads `UNVERIFIED`. This is
+a real cost, not an oversight: the alternative is fuzzy matching, which would
+credit the wrong commit. It is softened by showing the copyable reference on
+the task itself, and by manual linking recorded as `MANUAL` so it is visibly
+weaker than an observed commit.
+
+---
+
+## Cross-cutting fixes (2026-11-14)
+
+Found while testing the milestones above, but not specific to any one of them.
+
+### Intermittent DNS broke two integrations
+
+The dev machine intermittently fails DNS with `EAI_AGAIN` — measured at 0/12
+requests reaching Groq in one burst and 12/12 two minutes later. This caused
+three separate "the API is broken" investigations (Groq twice, Tavily once)
+where the key, quota and provider were all fine and the request never left the
+machine.
+
+`fetch failed` alone cannot distinguish a DNS blip from a dead network, so both
+services now log the cause code and retry **once** — but only for failures that
+happened before the request was received:
+
+| Failure | Retried | Why |
+|---|---|---|
+| `EAI_AGAIN`, `ENOTFOUND`, `ECONNRESET`, … | yes | never reached the API, so costs no quota |
+| timeout | no | may already be processing; re-sending could double-bill |
+| 429 / 5xx | no | the API answered; retrying multiplies usage on a free tier |
+
+The Tavily case was the more serious of the two. `search()` returned `[]` on any
+failure, so a blip left daily-plan tasks with **no resources attached,
+permanently, and indistinguishable from "we searched and found nothing"** —
+the same bug previously fixed for the research report via `searchWithStatus`,
+which the resource path had never received.
+
+### Optimistic status reverted on every revalidation
+
+Marking a task Done appeared to work and then silently reverted. The cause was
+pre-existing:
+
+```ts
+useEffect(() => { if (task) setOptimisticStatus(null); }, [task]);
+```
+
+`task` is an object, and SWR returns a new reference on every revalidation, so
+this cleared the optimistic overlay constantly — including mid-flight, which
+snapped the pill back to its old value. Now keyed on `task?.status` and cleared
+only once the server's value agrees. The assignee overlay had the same flaw.
+
+Confirmed the backend was never at fault: a direct `PATCH .../status` returned
+200 and the verdict recomputed to `VERIFIED` automatically.
+
+### Keyboard covering text inputs
+
+Two distinct causes, found from screenshots:
+
+1. `RepositorySheet` had no `KeyboardAvoidingView` — a bottom-anchored sheet
+   puts its input exactly where the keyboard opens.
+2. `PlanScopeSheet` *had* one, but its input sits at the end of a `ScrollView`,
+   which does not follow the focused field. Fixed with
+   `automaticallyAdjustKeyboardInsets`, `keyboardShouldPersistTaps="handled"`,
+   and a scroll on focus and after adding an item.
+
+Both were then audited repo-wide: every `TextInput` in the app now handles the
+keyboard, which also caught the same latent bug on the project members screen.
 
 ---
 

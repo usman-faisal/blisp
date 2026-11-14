@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { GithubService } from 'src/github/github.service';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { GetTaskDetailResponse, UpdateTaskStatusResponse } from '@repo/types';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
@@ -22,6 +23,7 @@ export class TasksService {
     private readonly prisma: PrismaService,
     private readonly access: ProjectAccessService,
     private readonly events: EventEmitter2,
+    private readonly github: GithubService,
   ) {}
 
   async getTaskById(userId: string, taskId: string): Promise<GetTaskDetailResponse> {
@@ -102,6 +104,18 @@ export class TasksService {
     });
 
     this.logger.log(`Task "${updated.title}" (${taskId}) updated to ${dto.status} for user ${userId}.`);
+
+    // A completion claim and the evidence for it are two halves of one
+    // question, so the verdict is refreshed here rather than left to go stale
+    // until the next sync. Never fatal: a task's status must still change if
+    // verification fails, since the claim is the user's to make either way.
+    try {
+      await this.github.recomputeTask(taskId);
+    } catch (error) {
+      this.logger.warn(
+        `Could not refresh verification for task ${taskId}: ${error instanceof Error ? error.message : 'unknown'}`,
+      );
+    }
 
     // Only completion is worth interrupting teammates for. TODO and
     // IN_PROGRESS churn would make the notification list useless.

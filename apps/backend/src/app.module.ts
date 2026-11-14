@@ -20,6 +20,7 @@ import { CommentsModule } from './comments/comments.module';
 import { DevTokensModule } from './dev/dev-tokens.module';
 import { TranscriptionModule } from './transcription/transcription.module';
 import { ResearchModule } from './research/research.module';
+import { GithubModule } from './github/github.module';
 import { RoadmapModule } from './roadmap/roadmap.module';
 
 @Module({
@@ -52,6 +53,7 @@ import { RoadmapModule } from './roadmap/roadmap.module';
     TranscriptionModule,
     ResearchModule,
     RoadmapModule,
+    GithubModule,
     AiModule,
     DailyPlanModule,
     ProjectsModule,

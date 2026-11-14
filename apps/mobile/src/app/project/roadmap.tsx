@@ -3,6 +3,9 @@ import { PlanScopeSheet } from '@/components/roadmap/PlanScopeSheet';
 import { ProgressBar, WeekStrip } from '@/components/roadmap/ProgressBar';
 import { ScheduleFitCard, ShrinkScopeSheet } from '@/components/roadmap/ScheduleFitCard';
 import { SettingsSheet } from '@/components/roadmap/SettingsSheet';
+import { RepositorySheet } from '@/components/github/RepositorySheet';
+import { VerificationSummaryLine } from '@/components/github/VerificationBadge';
+import { useRepositories } from '@/hooks/useRepositories';
 import { Container } from '@/components/ui/Container';
 import Text from '@/components/ui/Text';
 import { useRoadmap } from '@/hooks/useRoadmap';
@@ -52,6 +55,19 @@ export default function RoadmapScreen() {
   const [suggestedScope, setSuggestedScope] = useState<ScopeItemPayload[]>([]);
   const [fromReportVersion, setFromReportVersion] = useState<number | null>(null);
   const [shrinkRemedy, setShrinkRemedy] = useState<ShrinkScopeRemedyPayload | null>(null);
+  const [repoOpen, setRepoOpen] = useState(false);
+
+  // Linked repositories and how many completions they corroborate.
+  const {
+    repositories,
+    verification,
+    lastSync,
+    isSaving: isRepoSaving,
+    error: repoError,
+    link: linkRepo,
+    sync: syncRepo,
+    unlink: unlinkRepo,
+  } = useRepositories(projectId);
 
   // Task status changes happen on the task detail screen; without a refetch on
   // return the progress figures would still show the pre-change state.
@@ -104,6 +120,14 @@ export default function RoadmapScreen() {
           >
             <Ionicons name="options-outline" size={18} color="#1A1714" />
           </Pressable>
+          <Pressable
+            onPress={() => setRepoOpen(true)}
+            hitSlop={12}
+            accessibilityLabel="Linked repositories"
+            className="h-10 w-10 items-center justify-center rounded-full bg-core-surface active:opacity-70"
+          >
+            <Ionicons name="logo-github" size={18} color="#1A1714" />
+          </Pressable>
           {hasRoadmap && (
             <Pressable
               onPress={() => void openPlanner()}
@@ -140,6 +164,9 @@ export default function RoadmapScreen() {
               plan asks for both rather than one blended number. */}
           <View className="mt-5 rounded-2xl bg-core-surface/60 p-4">
             <ProgressBar progress={roadmap.progress} label="Overall progress" />
+            {/* How much of that progress is backed by evidence rather than
+                self-report. Null when nothing is checkable. */}
+            {verification && <VerificationSummaryLine summary={verification} />}
           </View>
 
           {/* Today. Null daily means nothing was planned, which is not 0%. */}
@@ -287,6 +314,18 @@ export default function RoadmapScreen() {
           setPlanOpen(false);
           void build(scope);
         }}
+      />
+
+      <RepositorySheet
+        visible={repoOpen}
+        repositories={repositories}
+        isSaving={isRepoSaving}
+        error={repoError}
+        lastSync={lastSync}
+        onClose={() => setRepoOpen(false)}
+        onLink={(repository) => void linkRepo(repository)}
+        onSync={(repositoryId) => void syncRepo(repositoryId)}
+        onUnlink={(repositoryId) => void unlinkRepo(repositoryId)}
       />
 
       <ShrinkScopeSheet

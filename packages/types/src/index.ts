@@ -769,3 +769,85 @@ export type UpdateRoadmapSettingsResponse = ApiResponse<RoadmapSettingsPayload &
 export type DeferTasksResponse = ApiResponse<{ deferred: number }>;
 export type RestoreTaskResponse = ApiResponse<{ id: string; status: Task['status'] }>;
 export type SetMilestoneStatusResponse = ApiResponse<{ id: string; status: MilestoneStatusValue }>;
+
+// ── GitHub verification ──────────────────────────────────────────────────────
+// Completion is self-reported: anyone can mark a task done. These payloads
+// carry the evidence found for that claim and the verdict derived from it, so
+// the UI can show what is corroborated and what merely was not checkable —
+// the same distinction the discovery report draws between SUPPORTED and
+// NOT_SUPPORTED.
+
+export type VerificationVerdictValue = 'VERIFIED' | 'UNVERIFIED' | 'SELF_REPORTED' | 'DISPUTED';
+
+export type EvidenceSourceValue = 'COMMIT' | 'PULL_REQUEST' | 'ISSUE' | 'MANUAL';
+
+export interface LinkedRepositoryPayload {
+  id: string;
+  owner: string;
+  name: string;
+  fullName: string;
+  url: string;
+  defaultBranch: string;
+  isPrivate: boolean;
+  /** Whether a token is stored. The token itself is never sent to a client. */
+  hasToken: boolean;
+  lastSyncedAt: string | null;
+  /** Why the last sync failed; null when it succeeded. */
+  lastSyncError: string | null;
+}
+
+/** One artifact observed on GitHub that may corroborate a completion. */
+export interface TaskEvidencePayload {
+  id: string;
+  source: EvidenceSourceValue;
+  externalId: string;
+  title: string;
+  url: string;
+  authorLogin: string | null;
+  /** When the work happened on GitHub, not when BLISP noticed it. */
+  occurredAt: string;
+  /** Why this was matched, in plain language, so the user can judge it. */
+  matchReason: string;
+}
+
+export interface TaskVerificationPayload {
+  taskId: string;
+  /** Null when the task has never been judged. */
+  verdict: VerificationVerdictValue | null;
+  summary: string | null;
+  evidence: TaskEvidencePayload[];
+}
+
+export interface VerificationSummaryPayload {
+  completed: number;
+  verified: number;
+  unverified: number;
+  disputed: number;
+  selfReported: number;
+  /**
+   * Percentage of checkable completions backed by evidence, or null when
+   * nothing was checkable — a project with no repository linked scoring 0%
+   * would read as a failure rather than a different setup.
+   */
+  percentVerified: number | null;
+}
+
+export interface SyncResultPayload {
+  commitsScanned: number;
+  evidenceRecorded: number;
+  tasksUpdated: number;
+  syncedAt: string;
+}
+
+export type LinkRepositoryResponse = ApiResponse<LinkedRepositoryPayload>;
+export type ListRepositoriesResponse = ApiResponse<LinkedRepositoryPayload[]>;
+export type UnlinkRepositoryResponse = ApiResponse<{ unlinked: boolean }>;
+export type SyncRepositoryResponse = ApiResponse<SyncResultPayload>;
+export type GetTaskVerificationResponse = ApiResponse<TaskVerificationPayload>;
+export type GetProjectVerificationResponse = ApiResponse<VerificationSummaryPayload>;
+export type AddEvidenceResponse = ApiResponse<{
+  taskId: string;
+  verdict: VerificationVerdictValue;
+  evidenceCount: number;
+  summary: string;
+}>;

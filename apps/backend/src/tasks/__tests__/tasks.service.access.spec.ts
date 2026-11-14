@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { GithubService } from 'src/github/github.service';
 import { TaskStatus } from '@repo/db';
 import { PrismaService } from 'src/common/services/prisma.service';
 import { ProjectAccessService } from 'src/projects/project-access.service';
@@ -55,6 +56,9 @@ describe('TasksService — membership access', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ProjectAccessService, useValue: mockAccess },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        // Verification is refreshed on status change; stubbed so these tests
+        // stay about access and assignment rather than GitHub.
+        { provide: GithubService, useValue: { recomputeTask: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
 

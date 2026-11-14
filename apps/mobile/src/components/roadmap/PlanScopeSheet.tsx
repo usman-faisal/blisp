@@ -1,7 +1,7 @@
 import Text from '@/components/ui/Text';
 import type { ScopeItemPayload, TaskEffortValue, TaskPriorityValue } from '@repo/types';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -61,6 +61,8 @@ export function PlanScopeSheet({
 }) {
   const [items, setItems] = useState<EditableScopeItem[]>([]);
   const [newTitle, setNewTitle] = useState('');
+  /** Scrolls the "add your own" field clear of the keyboard when it focuses. */
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -114,6 +116,10 @@ export function PlanScopeSheet({
       },
     ]);
     setNewTitle('');
+    // The list just grew by a row, pushing the input down behind the keyboard.
+    // Keeping it in view lets several items be added without dismissing the
+    // keyboard between each one.
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
   };
 
   return (
@@ -148,7 +154,18 @@ export function PlanScopeSheet({
               <ActivityIndicator color="#E8612A" />
             </View>
           ) : (
-            <ScrollView className="mt-3" showsVerticalScrollIndicator={false}>
+            <ScrollView
+              ref={scrollRef}
+              className="mt-3"
+              showsVerticalScrollIndicator={false}
+              // The "add your own" field sits at the end of this list, which is
+              // exactly where the keyboard opens. Without these the field is
+              // covered the moment it is focused: the sheet resizes, but the
+              // scroll position does not follow the focused input.
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+              contentContainerStyle={{ paddingBottom: 12 }}
+            >
               {items.map((item) => (
                 <View
                   key={item.key}
@@ -205,9 +222,13 @@ export function PlanScopeSheet({
                   value={newTitle}
                   onChangeText={setNewTitle}
                   onSubmitEditing={addOwn}
+                  // Scrolls the field clear of the keyboard on Android, where
+                  // automaticallyAdjustKeyboardInsets alone does not.
+                  onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120)}
                   placeholder="Add something of your own"
                   placeholderTextColor="#B0AAA3"
                   returnKeyType="done"
+                  blurOnSubmit={false}
                   className="flex-1 rounded-xl bg-core-surface px-4 py-3 font-text text-[13px] text-core-text-primary"
                 />
                 <Pressable
