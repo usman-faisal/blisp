@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Param, ParseIntPipe, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { User } from '@repo/db';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AuthGuard } from 'src/common/guards/auth.guard';
+import { THROTTLE_AI } from 'src/common/lib/throttle';
 import { RejectReportDto } from './dto/reject-report.dto';
 import { ResearchService } from './research.service';
 
@@ -19,6 +21,9 @@ export class ResearchController {
   constructor(private readonly researchService: ResearchService) {}
 
   @Post()
+  // A full discovery report is the most expensive call in the system: model
+  // time plus a batch of Tavily searches.
+  @Throttle({ default: THROTTLE_AI })
   @ApiOperation({
     summary: 'Generate a new research report version',
     description:
