@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none">
+  <defs>
+    <linearGradient id="blispFavGrad" x1="4" y1="26" x2="32" y2="10" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#DF5F2C" />
+      <stop offset="55%" stop-color="#D37D32" />
+      <stop offset="100%" stop-color="#C59B38" />
+    </linearGradient>
+  </defs>
+  <rect width="36" height="36" rx="10" fill="#F5F2EC" />
+  <path
+    d="M12.2 22.8C9.3 22.8 7 20.55 7 17.8C7 15.05 9.3 12.8 12.2 12.8C15.5 12.8 17.3 16.2 18 17.8C18.7 19.4 20.5 22.8 23.8 22.8C26.7 22.8 29 20.55 29 17.8C29 15.05 26.7 12.8 23.8 12.8C20.5 12.8 18.7 16.2 18 17.8C17.3 19.4 15.5 22.8 12.2 22.8Z"
+    stroke="url(#blispFavGrad)"
+    stroke-width="2.9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="28.5" cy="9.2" r="2.2" fill="#DF5F2C" />
+</svg>
