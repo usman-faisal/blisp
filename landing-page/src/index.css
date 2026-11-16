@@ -1,0 +1,255 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    /* Typography Families */
+    --font-display: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    --font-slab: 'Roboto Slab', Georgia, serif;
+
+    /* Fluid Clamp() Typography Scale */
+    --text-hero: clamp(3rem, 6vw, 5.5rem);
+    --text-h1: clamp(2.25rem, 4vw, 3.25rem);
+    --text-h2: clamp(1.75rem, 2.8vw, 2.5rem);
+    --text-h3: clamp(1.25rem, 1.8vw, 1.5rem);
+    --text-body-lg: clamp(1.0625rem, 1.3vw, 1.1875rem);
+    --text-body: clamp(0.9375rem, 1vw, 1rem);
+    --text-small: 0.875rem;
+    --text-eyebrow: 0.75rem;
+
+    /* Core Blisp App Palette (Measured from Screenshots) */
+    --blisp-cream: #F5F2EC;
+    --blisp-sand: #E9E2D8;
+    --blisp-sand-soft: #EFEBE2;
+    --blisp-sand-border: #D8D2CA;
+    --blisp-terracotta: #DF5F2C;
+    --blisp-terracotta-hover: #EA6D3B;
+    --blisp-terracotta-soft: #FCECE6;
+    --blisp-ochre: #C59B38;
+    --blisp-ochre-deep: #8C6919;
+    --blisp-ochre-soft: #DFCD9C;
+    --blisp-sage: #5F8C71;
+    --blisp-sage-deep: #4A7C59;
+    --blisp-espresso: #1C1815;
+
+    /* Light Mode Surface & Canvas Tokens */
+    --blisp-bg: #F5F2EC;
+    --blisp-canvas-gradient:
+      radial-gradient(62% 52% at 12% 8%, rgba(223, 95, 44, 0.08) 0%, transparent 70%),
+      radial-gradient(54% 48% at 88% 14%, rgba(197, 155, 56, 0.1) 0%, transparent 70%),
+      linear-gradient(160deg, #F8F5F0 0%, #F5F2EC 52%, #EFEBE2 100%);
+    --blisp-text-primary: #1C1815;
+    --blisp-text-secondary: #5D5851;
+    --blisp-text-muted: #67625B;
+
+    /* Warm Stone / Matte Paper Card Tokens (Light) */
+    --glass-bg: rgba(239, 235, 226, 0.82);
+    --glass-bg-hover: rgba(233, 226, 216, 0.94);
+    --glass-bg-subtle: rgba(233, 226, 216, 0.56);
+    --glass-border: rgba(50, 44, 37, 0.09);
+    --glass-border-strong: rgba(50, 44, 37, 0.16);
+    --glass-inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    --glass-shadow:
+      0 10px 30px -12px rgba(50, 44, 37, 0.08),
+      0 2px 6px -1px rgba(50, 44, 37, 0.04);
+
+    /* Layout & Spacing (8px base) */
+    --space-unit: 8px;
+    --container-max: 1200px;
+    --section-py: clamp(80px, 10vw, 140px);
+    --radius-card: 20px;
+    --radius-control: 14px;
+
+    /* Motion Tokens */
+    --ease-blisp: cubic-bezier(0.22, 1, 0.36, 1);
+    --duration-micro: 240ms;
+    --duration-reveal: 720ms;
+  }
+
+  .dark {
+    /* Warm Espresso / Obsidian Dark Mode Palette */
+    --blisp-cream: #141210;
+    --blisp-sand: #201C18;
+    --blisp-sand-soft: #1B1814;
+    --blisp-sand-border: #332C25;
+    --blisp-terracotta: #E86F3F;
+    --blisp-terracotta-hover: #F07E51;
+    --blisp-terracotta-soft: rgba(232, 111, 63, 0.16);
+    --blisp-ochre: #D6AB4E;
+    --blisp-ochre-deep: #E4C06E;
+    --blisp-ochre-soft: rgba(214, 171, 78, 0.16);
+    --blisp-sage: #6E9D80;
+    --blisp-sage-deep: #7DB090;
+    --blisp-espresso: #F5F2EC;
+
+    /* Dark Mode Surface & Canvas Tokens */
+    --blisp-bg: #141210;
+    --blisp-canvas-gradient:
+      radial-gradient(58% 48% at 14% 10%, rgba(232, 111, 63, 0.1) 0%, transparent 72%),
+      radial-gradient(52% 46% at 86% 18%, rgba(214, 171, 78, 0.08) 0%, transparent 72%),
+      linear-gradient(180deg, #141210 0%, #191613 55%, #141210 100%);
+    --blisp-text-primary: #F5F2EC;
+    --blisp-text-secondary: #C5BDB2;
+    --blisp-text-muted: #A59D92;
+
+    /* Warm Stone Cards (Dark) */
+    --glass-bg: rgba(32, 28, 24, 0.84);
+    --glass-bg-hover: rgba(41, 36, 31, 0.94);
+    --glass-bg-subtle: rgba(32, 28, 24, 0.56);
+    --glass-border: rgba(245, 242, 236, 0.09);
+    --glass-border-strong: rgba(245, 242, 236, 0.17);
+    --glass-inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --glass-shadow:
+      0 18px 42px -14px rgba(0, 0, 0, 0.6),
+      0 4px 12px -2px rgba(0, 0, 0, 0.42);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    background-color: var(--blisp-bg);
+    color: var(--blisp-text-primary);
+    scroll-behavior: smooth;
+    overflow-x: clip;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.6;
+    background-color: var(--blisp-bg);
+    background-image: var(--blisp-canvas-gradient);
+    background-attachment: fixed;
+    color: var(--blisp-text-primary);
+    overflow-x: clip;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color var(--duration-micro) var(--ease-blisp),
+      color var(--duration-micro) var(--ease-blisp);
+  }
+}
+
+/* Typography Helpers */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono-code {
+  font-family: var(--font-mono);
+}
+
+.font-slab-code {
+  font-family: var(--font-slab);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.blisp-hero-title {
+  font-family: var(--font-display);
+  font-size: var(--text-hero);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.03;
+  text-wrap: balance;
+}
+
+.blisp-h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-h1);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.blisp-h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.16;
+  text-wrap: balance;
+}
+
+.blisp-h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+/* Emphasis-only Terracotta-to-Ochre Gradient */
+.blisp-gradient-text {
+  background: linear-gradient(120deg, var(--blisp-terracotta) 0%, #D47E31 52%, var(--blisp-ochre) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Warm Matte Stone / Paper Card Surface */
+.blisp-glass {
+  background-color: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-inner-glow), var(--glass-shadow);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.blisp-glass-subtle {
+  background-color: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-inner-glow);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Ambient Motion Primitives (compositor-only: transform & opacity) */
+@keyframes blispWaveformPulse {
+  0%, 100% {
+    transform: scaleY(0.36);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.animate-blisp-wave {
+  transform-origin: center;
+  animation: blispWaveformPulse 2.2s var(--ease-blisp) infinite;
+}
+
+/* Reduced Motion Respect */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Invisible Screen-Recording Demo Mode */
+html.blisp-demo-mode,
+body.blisp-demo-mode {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: auto !important;
+}
+
+html.blisp-demo-mode::-webkit-scrollbar,
+body.blisp-demo-mode::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
